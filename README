@@ -8,4 +8,12 @@ Then do:
     autoreconf -i
     ./configure
     make
-    make install
+    sudo make install
+
+This will install the program mprotoc.
+
+To generate a Mercury module file from a .proto file do:
+
+    mproto my_messages.proto --out .
+
+This will generate the module my_messages.m in the current directory.

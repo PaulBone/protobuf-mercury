@@ -6,7 +6,7 @@ int main(int argc, char* argv[]) {
   google::protobuf::compiler::CommandLineInterface cli;
 
   // Support generation of Mercury code.
-  google::protobuf::compiler::c::MercuryGenerator mercury_generator;
+  google::protobuf::compiler::mercury::MercuryGenerator mercury_generator;
   cli.RegisterGenerator("--out", &mercury_generator,
   "Generate Mercury files.");
   

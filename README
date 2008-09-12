@@ -1,0 +1,11 @@
+Protocol buffers for Mercury.
+
+To build first install protoc and libprotoc
+(available from http://code.google.com/p/protobuf/).
+
+Then do:
+
+    autoreconf -i
+    ./configure
+    make
+    make install

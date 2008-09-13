@@ -1,0 +1,20 @@
+#!/bin/sh
+some_tests_failed="no"
+
+for test in "$@"; do
+        if ./runtest $test 2> $test.err > $test.out; then
+                echo PASSED TEST $test
+        else
+                echo "*** FAILED TEST $test ***"
+                some_tests_failed="yes"
+        fi
+done
+
+echo
+if [ "$some_tests_failed" = "no" ]; then
+	echo ALL TESTS PASSED
+else
+	echo SOME TESTS FAILED
+        exit 1
+fi
+echo

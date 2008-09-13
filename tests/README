@@ -1,0 +1,15 @@
+To add a new test you need to do the following:
+
+- Add the name of the test to the TESTS variable in Makefile.
+- Add the following files to this directory, where <test> is the name of
+  your test:
+    - <test>.proto:     proto file for the test
+    - <test>.inp:       input value as a Mercury term
+    - <test>.type:      file containing the Mercury type name of the
+                        message type to test
+    - <test>.class:     file containing the C++ class name of the message type
+                        to test
+    - <test>.cppexp:    expected output of the C++ DebugString() method
+- If the expected output of the Mercury reader is different from the input
+  term (for example because of default values in the .proto file), the you can
+  also add <test>.mexp.

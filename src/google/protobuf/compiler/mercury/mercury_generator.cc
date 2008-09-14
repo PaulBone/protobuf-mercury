@@ -105,7 +105,7 @@ void FlattenEnums(const FileDescriptor* file,
     }
 }
 
-// Converts camel case string to a lowercase string with
+// Converts camel case or uppercase string to a lowercase string with
 // underscores.
 string StringToLowerCaseWithUnderScores(const string str)
 {
@@ -120,12 +120,10 @@ string StringToLowerCaseWithUnderScores(const string str)
         if (pos == string::npos) {
             rstr.push_back(str.at(i));
         } else {
-            // Only add an underscore if this is not the first character
-            // or the last character and the next character is also not
-            // a capital.  This allows something like ABC to be translated
-            // into abc, while aBC is translated into a_bc.
-            if (i != 0 && i < (str.size() - 1) &&
-                    (capitals.find(str.at(i + 1)) == string::npos)) {
+            // Put underscores before capitals, but only if it is not the
+            // first letter and the previous letter is not a capital.
+            if (i != 0 && capitals.find(str[i] != string::npos) &&
+                    (capitals.find(str[i - 1]) == string::npos)) {
                 rstr.push_back('_');
             }
             rstr.push_back(lower_case.at(pos));
@@ -327,6 +325,8 @@ string IntToStr(int i)
 string DoubleToStr(double d)
 {
     std::stringstream    ss;
+    ss.setf(ios::scientific);
+    ss.precision(100);
     ss << d;
     return ss.str();
 }

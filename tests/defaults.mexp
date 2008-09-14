@@ -1,0 +1,8 @@
+defaults_message(
+  yes(
+    42), 
+  3.14, 
+  yes(
+    enum1_option2), 
+  [
+   "a string"])

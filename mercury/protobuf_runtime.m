@@ -35,6 +35,7 @@
 :- import_module bitmap.
 :- import_module int.
 :- import_module io.
+:- import_module set.
 :- import_module stream.
 
 %-----------------------------------------------------------------------------%
@@ -70,6 +71,7 @@
     ;       float_not_8_bytes_on_this_platform
     ;       number_of_bits_in_bitmap_not_divisible_by_8(bitmap.bitmap)
     ;       some [En] unknown_enum_value(En, int)
+    ;       some [M] missing_required_fields(M, set(field_id))
     .
 
     % Generated message types are made instances of this typeclass.
@@ -174,6 +176,7 @@
 :- import_module require.
 :- import_module store.
 :- import_module string.
+:- import_module svset.
 :- import_module type_desc.
 
 %-----------------------------------------------------------------------------%
@@ -215,11 +218,21 @@ where [
 :- instance stream.reader(pb_stream(S), pb_message(M), io, pb_error(E))
     <= ( stream.reader(S, byte, io, E), pb_message(M), stream.error(E) )
 where [
-    ( get(pb_stream(Stream, Limit), Result, !IO) :-
-        % We copy the default value to make sure it is on the heap, since
-        % we will be destructively updating it.
-        copy(default_value, Message0),
-        build_message(Stream, Limit, Message0, Result0, 0, _Pos, !IO),
+    pred(get/4) is pb_get
+].
+
+:- pred pb_get(pb_stream(S)::in,
+    stream.result(pb_message(M), pb_error(E))::out, io::di, io::uo) is det
+    <= ( stream.reader(S, byte, io, E), stream.error(E), pb_message(M) ).
+
+pb_get(pb_stream(Stream, Limit), Result, !IO) :-
+    % We copy the default value to make sure it is on the heap, since
+    % we will be destructively updating it.
+    copy(default_value, Message0),
+    build_message(Stream, Limit, Message0, Result0, 0, _Pos, set.init,
+        FoundFieldIds, !IO),
+    RequiredFieldIds = required_fields(_:M),
+    ( set.subset(RequiredFieldIds, FoundFieldIds) ->
         ( Result0 = ok(embedded_message(MoreBytes, Message)),
             ( MoreBytes = no_more_bytes,
                 Result = ok(pb_message(Message))
@@ -231,27 +244,32 @@ where [
         ; Result0 = eof,
             Result = eof
         )
-    )
-].
+    ;
+        Result = error('new missing_required_fields'(default_value:M,
+            set.difference(RequiredFieldIds, FoundFieldIds)))
+    ).
 
 :- pred build_message(S::in, limit::in, M::di,
     stream.result(embedded_message(M), pb_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo)
+    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
+    io::di, io::uo)
     is det <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
-build_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
+build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
     ( Limit =< !.Pos ->
         Result = ok(embedded_message(more_bytes,
             reverse_message_lists(Message0)))
     ;
         read_key(Stream, Limit, KeyResult, !Pos, !IO),
         ( KeyResult = ok(key(FieldId, WireType)),
+            svset.insert(FieldId, !FieldIds),
             ( field_info(Message0, FieldId, ArgNum, FieldType, Card) ->
                 (
                     field_type_compatible_with_wire_type(FieldType, WireType)
                 ->
                     read_field_value_and_continue(Stream, Limit,
-                        ArgNum, FieldType, Card, Message0, Result, !Pos, !IO)
+                        ArgNum, FieldType, Card, Message0, Result, !Pos,
+                            !FieldIds, !IO)
                 ;
                     Result = error(incompatible_field_type(FieldType, WireType,
                         FieldId, !.Pos))
@@ -259,7 +277,7 @@ build_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
             ;
                 % The field is unknown, so ignore it.
                 skip_field_and_continue(Stream, Limit, Message0, WireType,
-                    Result, !Pos, !IO)
+                    Result, !Pos, !FieldIds, !IO)
             )
         ; KeyResult = error(Err),
             Result = error(Err)
@@ -272,21 +290,22 @@ build_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
 :- pred read_field_value_and_continue(S::in, limit::in,
     arg_num::in, field_type::in, field_cardinality::in, M::di,
     stream.result(embedded_message(M), pb_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
+    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
+    io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
 read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
-        Card, Message0, Result, !Pos, !IO) :-
+        Card, Message0, Result, !Pos, !FieldIds, !IO) :-
     ( FieldType = pb_double,
         read_pb_double(Stream, Limit, DblRes, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, DblRes,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = pb_float,
         Result = error(unsupported_field_type(FieldType, !.Pos))
     ; FieldType = pb_int32,
         read_pb_int32(Stream, Limit, Int32Res, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, Int32Res,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = pb_int64,
         Result = error(unsupported_field_type(FieldType, !.Pos))
     ; FieldType = pb_uint32,
@@ -296,7 +315,7 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
     ; FieldType = pb_sint32,
         read_pb_sint32(Stream, Limit, SInt32Res, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, SInt32Res,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = pb_sint64,
         Result = error(unsupported_field_type(FieldType, !.Pos))
     ; FieldType = pb_fixed32,
@@ -306,25 +325,25 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
     ; FieldType = pb_sfixed32,
         read_pb_sfixed32(Stream, Limit, SFixed32Res, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, SFixed32Res,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = pb_sfixed64,
         Result = error(unsupported_field_type(FieldType, !.Pos))
     ; FieldType = pb_bool,
         read_pb_bool(Stream, Limit, BoolRes, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, BoolRes,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = pb_string,
         read_pb_string(Stream, Limit, StrRes, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, StrRes,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = pb_bytes,
         read_pb_bytes(Stream, Limit, BytesRes, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, BytesRes,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = enumeration(Enum),
         read_enum(Stream, Limit, Enum, EnumRes, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0, EnumRes,
-            ArgNum, Card, Result, !Pos, !IO)
+            ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ; FieldType = embedded_message(EmbeddedMessage0),
         % We copy the value to make sure it is on the heap, since
         % we will be destructively updating it.
@@ -332,15 +351,17 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
         read_embedded_message(Stream, Limit, EmbeddedMessage,
             EmbeddedMessageRes, !Pos, !IO),
         set_field_and_continue(Stream, Limit, Message0,
-            EmbeddedMessageRes, ArgNum, Card, Result, !Pos, !IO)
+            EmbeddedMessageRes, ArgNum, Card, Result, !Pos, !FieldIds, !IO)
     ).
 
 :- pred skip_field_and_continue(S::in, limit::in, M::di, wire_type::in,
-    stream.result(embedded_message(M), pb_error(E))::out, byte_pos::in,
-    byte_pos::out, io::di, io::uo) is det
+    stream.result(embedded_message(M), pb_error(E))::out,
+    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
+    io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
-skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos, !IO) :-
+skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos,
+        !FieldIds, !IO) :-
     ( Limit =< !.Pos ->
         Result = error(limit_exceeded)
     ;
@@ -350,9 +371,10 @@ skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos, !IO) :-
             ( ByteRes = ok(Byte),
                 ( Byte /\ 0b10000000 > 0 ->
                     skip_field_and_continue(Stream, Limit, Message0, WireType,
-                        Result, !Pos, !IO)
+                        Result, !Pos, !FieldIds, !IO)
                 ;
-                    build_message(Stream, Limit, Message0, Result, !Pos, !IO)
+                    build_message(Stream, Limit, Message0, Result, !Pos,
+                        !FieldIds, !IO)
                 )
             ; ByteRes = error(Err),
                 Result = error(stream_error(Err))
@@ -362,7 +384,8 @@ skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos, !IO) :-
         ; WireType = bit64,
             read_n_bytes(Stream, Limit, 8, BytesRes, !Pos, !IO),
             ( BytesRes = ok(_),
-                build_message(Stream, Limit, Message0, Result, !Pos, !IO)
+                build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds,
+                    !IO)
             ; BytesRes = error(Err),
                 Result = error(Err)
             ; BytesRes = eof,
@@ -373,7 +396,8 @@ skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos, !IO) :-
             ( VarIntRes = ok(Length),
                 read_n_bytes(Stream, Limit, Length, BytesRes, !Pos, !IO),
                 ( BytesRes = ok(_),
-                    build_message(Stream, Limit, Message0, Result, !Pos, !IO)
+                    build_message(Stream, Limit, Message0, Result, !Pos,
+                        !FieldIds, !IO)
                 ; BytesRes = error(Err),
                     Result = error(Err)
                 ; BytesRes = eof,
@@ -387,7 +411,8 @@ skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos, !IO) :-
         ; WireType = bit32,
             read_n_bytes(Stream, Limit, 4, BytesRes, !Pos, !IO),
             ( BytesRes = ok(_),
-                build_message(Stream, Limit, Message0, Result, !Pos, !IO)
+                build_message(Stream, Limit, Message0, Result, !Pos,
+                    !FieldIds, !IO)
             ; BytesRes = error(Err),
                 Result = error(Err)
             ; BytesRes = eof,
@@ -432,15 +457,16 @@ read_n_bytes(Stream, Limit, N, Result, !Pos, !IO) :-
 :- pred set_field_and_continue(S::in, limit::in, M::di,
     stream.result(V, pb_error(E))::in, arg_num::in, field_cardinality::in,
     stream.result(embedded_message(M), pb_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
+    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
+    io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
 set_field_and_continue(Stream, Limit, Message0, ReadRes, ArgNum, Card,
-        Result, !Pos, !IO) :-
+        Result, !Pos, !FieldIds, !IO) :-
     ( ReadRes = ok(Value),
         set_message_field(ArgNum, Card, unsafe_promise_unique(Value):V,
             Message0, Message1),
-        build_message(Stream, Limit, Message1, Result, !Pos, !IO)
+        build_message(Stream, Limit, Message1, Result, !Pos, !FieldIds, !IO)
     ; ReadRes = error(Err),
         Result = error(Err)
     ; ReadRes = eof,
@@ -605,28 +631,35 @@ read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
         ( Length + !.Pos =< Limit ->
             StartPos = !.Pos,
             build_message(Stream, StartPos + Length, Message0, EmbeddedRes,
-                !Pos, !IO),
-            ( EmbeddedRes = ok(embedded_message(MoreBytes, Message)),
-                ( MoreBytes = more_bytes,
-                    ( !.Pos = StartPos + Length ->
-                        Result = ok(Message)
-                    ; !.Pos < StartPos + Length ->
+                !Pos, set.init, FoundFieldIds, !IO),
+            RequiredFieldIds = required_fields(_:M),
+            ( set.subset(RequiredFieldIds, FoundFieldIds) ->
+                ( EmbeddedRes = ok(embedded_message(MoreBytes, Message)),
+                    ( MoreBytes = more_bytes,
+                        ( !.Pos = StartPos + Length ->
+                            Result = ok(Message)
+                        ; !.Pos < StartPos + Length ->
+                            Result = error(premature_eof(!.Pos))
+                        ;
+                            Result = error(embedded_message_length_exceeded(
+                                !.Pos))
+                        )
+                    ; MoreBytes = no_more_bytes,
+                        % We hit eof while reading the embedded message.
                         Result = error(premature_eof(!.Pos))
-                    ;
-                        Result = error(embedded_message_length_exceeded(!.Pos))
                     )
-                ; MoreBytes = no_more_bytes,
-                    % We hit eof while reading the embedded message.
+                ; EmbeddedRes = error(Err),
+                    ( Err = limit_exceeded ->
+                        Result = error(embedded_message_length_exceeded(!.Pos))
+                    ;
+                        Result = error(Err)
+                    )
+                ; EmbeddedRes = eof,
                     Result = error(premature_eof(!.Pos))
                 )
-            ; EmbeddedRes = error(Err),
-                ( Err = limit_exceeded ->
-                    Result = error(embedded_message_length_exceeded(!.Pos))
-                ;
-                    Result = error(Err)
-                )
-            ; EmbeddedRes = eof,
-                Result = error(premature_eof(!.Pos))
+            ;
+                Result = error('new missing_required_fields'(default_value:M,
+                    set.difference(RequiredFieldIds, FoundFieldIds)))
             )
         ;
             Result = error(embedded_message_length_exceeded(!.Pos))
@@ -1396,6 +1429,36 @@ string_to_bitmap(Str) = BitMap :-
 set_byte_in_bitmap(Chr, !I, !BitMap) :-
     !BitMap ^ unsafe_byte(!.I) := char.to_int(Chr),
     !:I = !.I + 1.
+
+%-----------------------------------------------------------------------------%
+
+% This doesn't work for arguments with mode 'unused'.
+% :- pragma memo(required_fields/1).
+
+    % Return all the required field ids for a message type.
+    %
+:- func required_fields(M::unused) = (set(field_id)::out) is det
+    <= pb_message(M).
+
+required_fields(Message) = FieldIds :-
+    required_fields_2(Message, 0, set.init, FieldIds).
+
+:- pred required_fields_2(M::unused, int::in,
+    set(field_id)::in, set(field_id)::out) is det <= pb_message(M).
+
+required_fields_2(Message, ArgNum, !FieldIds) :-
+    ( field_info(Message, FieldId, ArgNum, _, Card) ->
+        ( Card = required,
+            svset.insert(FieldId, !FieldIds)
+        ;
+            ( Card = optional
+            ; Card = repeated
+            )
+        ),
+        required_fields_2(Message, ArgNum + 1, !FieldIds)
+    ;
+        true
+    ).
 
 %-----------------------------------------------------------------------------%
 :- end_module protobuf_runtime.

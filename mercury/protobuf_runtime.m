@@ -208,7 +208,8 @@ where [
     <= ( stream.reader(S, byte, io, E), pb_message(M), stream.error(E) )
 where [
     ( get(pb_stream(Stream, Limit), Result, !IO) :-
-        build_message(Stream, Limit, default_value, Result0, 0, _Pos, !IO),
+        copy(default_value, Message0),
+        build_message(Stream, Limit, Message0, Result0, 0, _Pos, !IO),
         ( Result0 = ok(embedded_message(MoreBytes, Message)),
             ( MoreBytes = no_more_bytes,
                 Result = ok(pb_message(Message))
@@ -441,7 +442,7 @@ set_field_and_continue(Stream, Limit, Message0, ReadRes, ArgNum, Card,
 read_key(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
     ( VarIntRes = ok(VarInt),
-        FieldId = VarInt >> 3,
+        FieldId = VarInt `unsigned_right_shift` 3,
         WireTypeTag = VarInt /\ 0b111,
         ( tag_wire_type(WireTypeTag, WireType) ->
             Result = ok(key(FieldId, WireType))

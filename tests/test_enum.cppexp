@@ -1,0 +1,8 @@
+colour: RED
+colour: GREEN
+colour: MAGENTA
+colour: YELLOW
+colour: BLUE
+colour: CYAN
+yes_or_no: NO
+datatype: BOOL

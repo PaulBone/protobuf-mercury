@@ -1,0 +1,7 @@
+bytes_message([
+string_to_bitmap(""),
+string_to_bitmap("\t\n"),
+string_to_bitmap("lala"),
+string_to_bitmap("12345678910"),
+det_bm_from_string("<8:00>")
+])

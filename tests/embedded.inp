@@ -1,10 +1,9 @@
 top_message([
-    sub_message1(sub_sub_message1(1, 2, "3", yes(colour_red)), [colour_blue]),
-    sub_message1(sub_sub_message1(-2147483648, -1, "hello", no), []),
-    sub_message1(sub_sub_message1(4, 5, "six", yes(colour_green)),
+    sub_message1(sub_sub_message1(1, 2, "3", colour_red), [colour_blue]),
+    sub_message1(sub_sub_message1(-2147483648, -1, "hello", colour_green), []),
+    sub_message1(sub_sub_message1(4, 5, "six", colour_green),
         [colour_red, colour_blue, colour_green])
 ],
 sub_message2,
-yes(sub_message3(1, yes(sub_message3(2,
-    yes(sub_message3(3, yes(sub_message3(4, no))))))))
+sub_message3(1, [sub_message3(2, [sub_message3(3, [sub_message3(4, [])])])])
 )

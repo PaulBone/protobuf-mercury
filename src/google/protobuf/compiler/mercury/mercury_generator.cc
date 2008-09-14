@@ -212,9 +212,7 @@ string FieldTypeName(const FieldDescriptor *field)
         }
     }
 
-    if (field->is_optional()) {
-        type_name = "maybe(" + type_name + ")";
-    } else if (field->is_repeated()) {
+    if (field->is_repeated()) {
         type_name = "list(" + type_name + ")";
     }
 
@@ -302,7 +300,7 @@ void WriteInterface(io::Printer *printer, const FileDescriptor* file,
 
     printer->Print(":- interface.\n\n");
     printer->Print(
-        ":- import_module protobuf_runtime, bitmap, bool, list, maybe.\n\n");
+        ":- import_module protobuf_runtime, bitmap, bool, list.\n\n");
 
     for (i = 0; i < message_types->size(); i++) {
         WriteMessageType(printer, message_types->at(i));
@@ -421,11 +419,10 @@ string FieldDefaultValueStr(const FieldDescriptor *field)
 {
     string  default_value;
 
-    if (!field->has_default_value() && field->is_optional()) {
-        return "no";
-    }
-
-    if (!field->has_default_value() && field->is_repeated()) {
+    /*
+     * Default values don't (seem to) apply to repeated fields.
+     */
+    if (field->is_repeated()) {
         return "[]";
     }
 
@@ -492,11 +489,6 @@ string FieldDefaultValueStr(const FieldDescriptor *field)
         default: {
             throw field;
         }
-    }
-    if (field->is_optional()) {
-        default_value = "yes(" + default_value + ")";
-    } else if (field->is_repeated()) {
-        default_value = "[" + default_value + "]";
     }
 
     return default_value;

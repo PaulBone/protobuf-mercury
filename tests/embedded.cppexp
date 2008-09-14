@@ -9,6 +9,7 @@ sub_message_1 {
 }
 sub_message_1 {
   sub_sub_message_1 {
+    colour: GREEN
     f3: "hello"
     f2: -1
     f1: -2147483648

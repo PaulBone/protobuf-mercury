@@ -23,7 +23,7 @@ message SubMessage2 {
 
 message SubMessage3 {
     required int32 head = 536870911;
-    optional SubMessage3 tail = 1;
+    repeated SubMessage3 tail = 1;
 }
 
 message SubSubMessage1 {

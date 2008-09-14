@@ -1,6 +1,6 @@
 defaults_message(
-no,
+42,
 3.14,
-no,
+enum1_option2,
 []
 )

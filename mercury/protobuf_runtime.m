@@ -172,7 +172,6 @@
 :- import_module deconstruct.
 :- import_module exception.
 :- import_module list.
-:- import_module maybe.
 :- import_module require.
 :- import_module store.
 :- import_module string.
@@ -953,11 +952,13 @@ read_n_bytes_into_bitmap_2(Stream, Limit, I, N, BM0, Result, !Pos, !IO) :-
     M::di, M::uo) is det.
 
 set_message_field(ArgNum, Card, Value, !Message) :-
-    ( Card = required,
+    (
+        ( Card = required
+        ; Card = optional
+        ),
         set_arg(ArgNum, Value, !Message)
-    ; Card = optional,
-        set_arg(ArgNum, yes(Value), !Message)
-    ; Card = repeated,
+    ;
+        Card = repeated,
         set_list_arg(ArgNum, Value, !Message)
     ).
 
@@ -1299,15 +1300,11 @@ write_enum(Stream, Key, EnumVal, !IO) :-
     is det.
 
 arg_to_value_list(Arg, Card, Values) :-
-    ( Card = required,
+    (
+        ( Card = required
+        ; Card = optional
+        ),
         det_dynamic_cast([Arg], Values)
-    ; Card = optional,
-        det_dynamic_cast(Arg, MaybeArg),
-        ( MaybeArg = yes(Val),
-            Values = [Val]
-        ; MaybeArg = no,
-            Values = []
-        )
     ; Card = repeated,
         det_dynamic_cast(Arg, Values)
     ).

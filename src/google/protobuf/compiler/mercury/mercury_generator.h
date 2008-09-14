@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Author: iml@missioncriticalit.com (Ian MacLarty).
+// Author: Ian MacLarty (iml@missioncriticalit.com).
 // Generates Mercury code for a given .proto file.
 
 #ifndef GOOGLE_PROTOBUF_COMPILER_MERCURY_GENERATOR_H__

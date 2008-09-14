@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Author: iml@missioncriticalit.com (Ian MacLarty).
+// Author: Ian MacLarty (iml@missioncriticalit.com).
 
 #include <utility>
 #include <map>

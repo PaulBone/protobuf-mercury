@@ -17,10 +17,18 @@
 % LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 % OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 % THE SOFTWARE.
+%
 %-----------------------------------------------------------------------------%
+% File: protobuf_runtime.m.
+% Author: Ian MacLarty (iml@missioncriticalit.com)
+%
+% The protocol buffer runtime.  This module contains code called by the
+% generated code as well as stream instances that can be used to read
+% and write messages in user code.
+%
+%-----------------------------------------------------------------------------%
+
 :- module protobuf_runtime.
-% The protocol buffer runtime.
-%-----------------------------------------------------------------------------%
 
 :- interface.
 

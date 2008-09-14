@@ -7,7 +7,8 @@ TESTS =	test_int32				\
 	test_string				\
 	test_enum				\
 	field_key				\
-	defaults
+	defaults				\
+	embedded
 
 check: $(TESTS:%=%_cppreader) $(TESTS:%=%_mwriter) $(TESTS:%=%_mreader) $(TESTS:%=%_pprinter)
 	./runtests $(TESTS)

@@ -1,0 +1,34 @@
+enum Colour {
+    RED = 0;
+    BLUE = 1;
+    GREEN = 2;
+    MAGENTA = 99999;
+    CYAN = 2147483647;
+    YELLOW = 123;
+}
+
+message TopMessage {
+    repeated SubMessage1 sub_message_1 = 1;
+    required SubMessage2 sub_message_2 = 2;
+    optional SubMessage3 sub_message_3 = 3;
+}
+
+message SubMessage1 {
+    required SubSubMessage1 sub_sub_message_1 = 1;
+    repeated Colour colour = 2;
+}
+
+message SubMessage2 {
+}
+
+message SubMessage3 {
+    required int32 head = 536870911;
+    optional SubMessage3 tail = 1;
+}
+
+message SubSubMessage1 {
+    required sint32 f1 = 536870911;
+    required sfixed32 f2 = 536870910 [default = -2147483648];
+    required string f3 = 536870909;
+    optional Colour colour = 536870908;
+}

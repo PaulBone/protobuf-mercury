@@ -238,7 +238,7 @@ void WriteMessageType(io::Printer *printer, const Descriptor *message_type)
     string  type_name = MessageTypeName(message_type);
 
     if (field_count == 0) {
-        printer->Print(":- type $type_name$ ---> $type_name.\n\n",
+        printer->Print(":- type $type_name$ ---> $type_name$.\n\n",
             "type_name", type_name);
     } else {
         printer->Print(":- type $type_name$\n", "type_name", type_name);
@@ -516,7 +516,7 @@ void WriteMessageTypeInstance(io::Printer *printer,
             "type_name", type_name);
 
     if (field_count == 0) {
-        printer->Print("    field_info(_, _, _, _, _) :- semidet_fail,\n");
+        printer->Print("    field_info(_, 0, 0, pb_int32, required) :- semidet_fail,\n");
         printer->Print("    default_value = $type_name$\n",
             "type_name", type_name);
     } else {

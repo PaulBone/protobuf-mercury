@@ -182,11 +182,10 @@ string FieldTypeName(const FieldDescriptor *field)
             type_name = "float";
             break;
         }
-        case FieldDescriptor::TYPE_INT32: {
-            type_name = "int";
-            break;
-        }
-        case FieldDescriptor::TYPE_FIXED32: {
+        case FieldDescriptor::TYPE_INT32:
+        case FieldDescriptor::TYPE_SFIXED32:
+        case FieldDescriptor::TYPE_SINT32:
+        {
             type_name = "int";
             break;
         }
@@ -208,14 +207,6 @@ string FieldTypeName(const FieldDescriptor *field)
         }
         case FieldDescriptor::TYPE_ENUM: {
             type_name = EnumTypeName(field->enum_type());
-            break;
-        }
-        case FieldDescriptor::TYPE_SFIXED32: {
-            type_name = "int";
-            break;
-        }
-        case FieldDescriptor::TYPE_SINT32: {
-            type_name = "int";
             break;
         }
         default: {
@@ -448,7 +439,6 @@ string FieldDefaultValueStr(const FieldDescriptor *field)
             break;
         }
         case FieldDescriptor::TYPE_INT32:
-        case FieldDescriptor::TYPE_FIXED32:
         case FieldDescriptor::TYPE_SFIXED32:
         case FieldDescriptor::TYPE_SINT32:
         {

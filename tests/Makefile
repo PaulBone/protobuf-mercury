@@ -2,6 +2,7 @@ include ../Make.common
 
 TESTS =	test_int32				\
 	test_sint32				\
+	test_sfixed32				\
 	test_double				\
 	test_string
 
@@ -15,19 +16,19 @@ $(TESTS:%=%_cppreader.o): %_cppreader.o: %_cppreader.cc %.pb.cc
 	$(CXX) -c $^
 
 %_cppreader.cc: %.class cppreader_template 
-	cat cppreader_template | sed 's/TEST/$(@:%_cppreader.cc=%)/g' | \
+	@cat cppreader_template | sed 's/TEST/$(@:%_cppreader.cc=%)/g' | \
 		sed 's/MESSAGE_CLASS/$(shell cat $<)/g' > $@
 
 %_mwriter.m: %.inp mwriter_template 
-	cat mwriter_template | sed 's/TEST/$(@:%_mwriter.m=%)/g' | \
+	@cat mwriter_template | sed 's/TEST/$(@:%_mwriter.m=%)/g' | \
 		sed 's/MESSAGE_TERM/$(shell cat $<)/g' > $@
 
 %_mreader.m: %.type mreader_template 
-	cat mreader_template | sed 's/TEST/$(@:%_mreader.m=%)/g' | \
+	@cat mreader_template | sed 's/TEST/$(@:%_mreader.m=%)/g' | \
 		sed 's/MESSAGE_TYPE/$(shell cat $<)/g' > $@
 
 %_pprinter.m: %.type pprinter_template 
-	cat pprinter_template | sed 's/TEST/$(@:%_pprinter.m=%)/g' | \
+	@cat pprinter_template | sed 's/TEST/$(@:%_pprinter.m=%)/g' | \
 		sed 's/MESSAGE_TYPE/$(shell cat $<)/g' > $@
 
 %_mwriter: %_mwriter.m %.m Mercury.modules ../mercury/protobuf_runtime.m
@@ -42,7 +43,7 @@ $(TESTS:%=%_cppreader.o): %_cppreader.o: %_cppreader.cc %.pb.cc
 $(TESTS:%=%.pb.cc): %.pb.cc: %.proto
 	$(PROTOC) --cpp_out . $<
 
-$(TESTS:%=%.m): %.m: %.proto
+$(TESTS:%=%.m): %.m: %.proto ../src/mprotoc
 	../src/mprotoc --out . $<
 
 Mercury.modules:

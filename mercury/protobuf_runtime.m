@@ -293,7 +293,9 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
     ; FieldType = pb_fixed64,
         Result = error(unsupported_field_type(FieldType, !.Pos))
     ; FieldType = pb_sfixed32,
-        Result = error(unsupported_field_type(FieldType, !.Pos))
+        read_pb_sfixed32(Stream, Limit, SFixed32Res, !Pos, !IO),
+        set_field_and_continue(Stream, Limit, Message0, SFixed32Res,
+            ArgNum, Card, Result, !Pos, !IO)
     ; FieldType = pb_sfixed64,
         Result = error(unsupported_field_type(FieldType, !.Pos))
     ; FieldType = pb_bool,
@@ -529,6 +531,35 @@ read_pb_sint32(Stream, Limit, Result, !Pos, !IO) :-
         Result = error(Err)
     ; VarIntRes = eof,
         Result = eof
+    ).
+
+:- pred read_pb_sfixed32(S::in, limit::in,
+    stream.result(int, pb_error(E))::out, byte_pos::in, byte_pos::out,
+    io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
+
+read_pb_sfixed32(Stream, Limit, Result, !Pos, !IO) :-
+    read_n_bytes(Stream, Limit, 4, BytesRes, !Pos, !IO),
+    ( BytesRes = ok(Bytes),
+        ( Bytes = [Byte0, Byte1, Byte2, Byte3] ->
+            Int0 = Byte0 \/ (Byte1 `unchecked_left_shift` 8)
+                \/ (Byte2 `unchecked_left_shift` 16)
+                \/ (Byte3 `unchecked_left_shift` 24),
+            % If the number is negative make sure we return a negative int
+            % when the word size is > 32 bits.
+            ( Byte3 /\ 0b10000000 > 0 ->
+                Int = Int0 \/ (-1 `xor` 0xFFFFFFFF)
+            ;
+                Int = Int0
+            ),
+            Result = ok(Int)
+        ;
+            error("protobuf_runtime: internal error: " ++
+                "read_pb_fixed32: read_n_bytes didn't return 4 bytes")
+        )
+    ; BytesRes = error(Err),
+        Result = error(Err)
+    ; BytesRes = eof,
+        Result = error(premature_eof(!.Pos))
     ).
 
 :- pred read_enum(S::in, limit::in, En::in,
@@ -1053,7 +1084,8 @@ write_field(Stream, Key, FieldType, Card, Arg, !IO) :-
     ; FieldType = pb_fixed64,
         error("unsupported field type: " ++ string(FieldType))
     ; FieldType = pb_sfixed32,
-        error("unsupported field type: " ++ string(FieldType))
+        arg_to_value_list(Arg, Card, Values),
+        list.foldl(write_pb_sfixed32(Stream, Key), Values, !IO)
     ; FieldType = pb_sfixed64,
         error("unsupported field type: " ++ string(FieldType))
     ; FieldType = pb_bool,
@@ -1196,6 +1228,16 @@ write_pb_sint32(Stream, Key, N, !IO) :-
     ),
     write_key(Stream, Key, !IO),
     write_uvarint(Stream, ZigZagN, !IO).
+
+:- pred write_pb_sfixed32(S::in, key::in, int::in, io::di, io::uo) is det
+    <= ( stream.writer(S, byte, io) ).
+
+write_pb_sfixed32(Stream, Key, Int, !IO) :-
+    write_key(Stream, Key, !IO),
+    put(Stream, Int /\ 0xFF, !IO),
+    put(Stream, (Int >> 8) /\ 0xFF, !IO),
+    put(Stream, (Int >> 16) /\ 0xFF, !IO),
+    put(Stream, (Int >> 24) /\ 0xFF, !IO).
 
 :- pred write_enum(S::in, key::in, E::in, io::di, io::uo) is det
     <= ( stream.writer(S, byte, io), pb_enumeration(E) ).

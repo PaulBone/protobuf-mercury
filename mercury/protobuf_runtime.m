@@ -208,6 +208,8 @@ where [
     <= ( stream.reader(S, byte, io, E), pb_message(M), stream.error(E) )
 where [
     ( get(pb_stream(Stream, Limit), Result, !IO) :-
+        % We copy the default value to make sure it is on the heap, since
+        % we will be destructively updating it.
         copy(default_value, Message0),
         build_message(Stream, Limit, Message0, Result0, 0, _Pos, !IO),
         ( Result0 = ok(embedded_message(MoreBytes, Message)),
@@ -316,6 +318,8 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
         set_field_and_continue(Stream, Limit, Message0, EnumRes,
             ArgNum, Card, Result, !Pos, !IO)
     ; FieldType = embedded_message(EmbeddedMessage0),
+        % We copy the value to make sure it is on the heap, since
+        % we will be destructively updating it.
         copy(EmbeddedMessage0, EmbeddedMessage),
         read_embedded_message(Stream, Limit, EmbeddedMessage,
             EmbeddedMessageRes, !Pos, !IO),

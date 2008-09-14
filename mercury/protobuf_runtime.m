@@ -35,7 +35,7 @@
 :- import_module bitmap.
 :- import_module int.
 :- import_module io.
-:- import_module set.
+:- import_module sparse_bitset.
 :- import_module stream.
 
 %-----------------------------------------------------------------------------%
@@ -71,7 +71,7 @@
     ;       float_not_8_bytes_on_this_platform
     ;       number_of_bits_in_bitmap_not_divisible_by_8(bitmap.bitmap)
     ;       some [En] unknown_enum_value(En, int)
-    ;       some [M] missing_required_fields(M, set(field_id))
+    ;       some [M] missing_required_fields(M, sparse_bitset(field_id))
     .
 
     % Generated message types are made instances of this typeclass.
@@ -176,7 +176,6 @@
 :- import_module require.
 :- import_module store.
 :- import_module string.
-:- import_module svset.
 :- import_module type_desc.
 
 %-----------------------------------------------------------------------------%
@@ -229,10 +228,10 @@ pb_get(pb_stream(Stream, Limit), Result, !IO) :-
     % We copy the default value to make sure it is on the heap, since
     % we will be destructively updating it.
     copy(default_value, Message0),
-    build_message(Stream, Limit, Message0, Result0, 0, _Pos, set.init,
-        FoundFieldIds, !IO),
+    build_message(Stream, Limit, Message0, Result0, 0, _Pos,
+        sparse_bitset.init, FoundFieldIds, !IO),
     RequiredFieldIds = required_fields(_:M),
-    ( set.subset(RequiredFieldIds, FoundFieldIds) ->
+    ( sparse_bitset.subset(RequiredFieldIds, FoundFieldIds) ->
         ( Result0 = ok(embedded_message(MoreBytes, Message)),
             ( MoreBytes = no_more_bytes,
                 Result = ok(pb_message(Message))
@@ -246,13 +245,13 @@ pb_get(pb_stream(Stream, Limit), Result, !IO) :-
         )
     ;
         Result = error('new missing_required_fields'(default_value:M,
-            set.difference(RequiredFieldIds, FoundFieldIds)))
+            sparse_bitset.difference(RequiredFieldIds, FoundFieldIds)))
     ).
 
 :- pred build_message(S::in, limit::in, M::di,
     stream.result(embedded_message(M), pb_error(E))::out,
-    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
-    io::di, io::uo)
+    byte_pos::in, byte_pos::out, sparse_bitset(field_id)::in,
+    sparse_bitset(field_id)::out, io::di, io::uo)
     is det <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
 build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
@@ -262,7 +261,7 @@ build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
     ;
         read_key(Stream, Limit, KeyResult, !Pos, !IO),
         ( KeyResult = ok(key(FieldId, WireType)),
-            svset.insert(FieldId, !FieldIds),
+            sparse_bitset.insert(!.FieldIds, FieldId, !:FieldIds),
             ( field_info(Message0, FieldId, ArgNum, FieldType, Card) ->
                 (
                     field_type_compatible_with_wire_type(FieldType, WireType)
@@ -290,8 +289,9 @@ build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
 :- pred read_field_value_and_continue(S::in, limit::in,
     arg_num::in, field_type::in, field_cardinality::in, M::di,
     stream.result(embedded_message(M), pb_error(E))::out,
-    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
-    io::di, io::uo) is det
+    byte_pos::in, byte_pos::out,
+    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
+    is det
     <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
 read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
@@ -356,8 +356,9 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
 
 :- pred skip_field_and_continue(S::in, limit::in, M::di, wire_type::in,
     stream.result(embedded_message(M), pb_error(E))::out,
-    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
-    io::di, io::uo) is det
+    byte_pos::in, byte_pos::out,
+    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
+    is det
     <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
 skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos,
@@ -457,8 +458,9 @@ read_n_bytes(Stream, Limit, N, Result, !Pos, !IO) :-
 :- pred set_field_and_continue(S::in, limit::in, M::di,
     stream.result(V, pb_error(E))::in, arg_num::in, field_cardinality::in,
     stream.result(embedded_message(M), pb_error(E))::out,
-    byte_pos::in, byte_pos::out, set(field_id)::in, set(field_id)::out,
-    io::di, io::uo) is det
+    byte_pos::in, byte_pos::out,
+    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
+    is det
     <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
 set_field_and_continue(Stream, Limit, Message0, ReadRes, ArgNum, Card,
@@ -631,9 +633,9 @@ read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
         ( Length + !.Pos =< Limit ->
             StartPos = !.Pos,
             build_message(Stream, StartPos + Length, Message0, EmbeddedRes,
-                !Pos, set.init, FoundFieldIds, !IO),
+                !Pos, sparse_bitset.init, FoundFieldIds, !IO),
             RequiredFieldIds = required_fields(_:M),
-            ( set.subset(RequiredFieldIds, FoundFieldIds) ->
+            ( sparse_bitset.subset(RequiredFieldIds, FoundFieldIds) ->
                 ( EmbeddedRes = ok(embedded_message(MoreBytes, Message)),
                     ( MoreBytes = more_bytes,
                         ( !.Pos = StartPos + Length ->
@@ -659,7 +661,7 @@ read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
                 )
             ;
                 Result = error('new missing_required_fields'(default_value:M,
-                    set.difference(RequiredFieldIds, FoundFieldIds)))
+                    sparse_bitset.difference(RequiredFieldIds, FoundFieldIds)))
             )
         ;
             Result = error(embedded_message_length_exceeded(!.Pos))
@@ -1437,19 +1439,20 @@ set_byte_in_bitmap(Chr, !I, !BitMap) :-
 
     % Return all the required field ids for a message type.
     %
-:- func required_fields(M::unused) = (set(field_id)::out) is det
+:- func required_fields(M::unused) = (sparse_bitset(field_id)::out) is det
     <= pb_message(M).
 
 required_fields(Message) = FieldIds :-
-    required_fields_2(Message, 0, set.init, FieldIds).
+    required_fields_2(Message, 0, sparse_bitset.init, FieldIds).
 
 :- pred required_fields_2(M::unused, int::in,
-    set(field_id)::in, set(field_id)::out) is det <= pb_message(M).
+    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out) is det
+    <= pb_message(M).
 
 required_fields_2(Message, ArgNum, !FieldIds) :-
     ( field_info(Message, FieldId, ArgNum, _, Card) ->
         ( Card = required,
-            svset.insert(FieldId, !FieldIds)
+            sparse_bitset.insert(!.FieldIds, FieldId, !:FieldIds)
         ;
             ( Card = optional
             ; Card = repeated

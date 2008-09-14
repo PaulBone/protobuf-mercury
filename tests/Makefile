@@ -2,7 +2,8 @@ include ../Make.common
 
 TESTS =	test_int32				\
 	test_sint32				\
-	test_double
+	test_double				\
+	test_string
 
 check: $(TESTS:%=%_cppreader) $(TESTS:%=%_mwriter) $(TESTS:%=%_mreader) $(TESTS:%=%_pprinter)
 	./runtests $(TESTS)

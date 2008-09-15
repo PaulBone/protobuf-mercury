@@ -27,3 +27,11 @@ This will generate the module my_protocol.m in the current directory.
 The runtime module is located in the mercury directory (protobuf_runtime.m).
 This module is not installed by default.  You can install it using mmc --make
 or you can simply copy it into your source tree.
+
+Note that you may get some warnings from mmc about unused imports when
+compiling the generated module.  You can turn these off by adding a line
+like:
+
+    MCFLAGS-my_protocol+=--inhibit-warnings
+
+to your Mercury.options file.

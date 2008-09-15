@@ -1253,14 +1253,6 @@ write_uvarint(Stream, N, !IO) :-
     Z = (MR_Integer)((MR_Unsigned)X - (MR_Unsigned)Y);
 ").
 
-:- func unsigned_plus(int, int) = int.
-
-:- pragma foreign_proc("C", unsigned_plus(X::in, Y::in) = (Z::out),
-    [will_not_call_mercury, promise_pure, thread_safe, terminates],
-"
-    Z = (MR_Integer)((MR_Unsigned)X + (MR_Unsigned)Y);
-").
-
 :- pred write_pb_int32(S::in, key::in, int::in, io::di, io::uo) is det
     <= ( stream.writer(S, byte, io) ).
 

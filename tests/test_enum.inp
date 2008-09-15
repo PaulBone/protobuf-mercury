@@ -5,6 +5,6 @@ colour_magenta,
 colour_yellow,
 colour_blue,
 colour_cyan],
-enum_message_data_type_bool,
+yes(enum_message_data_type_bool),
 yes_no_no
 )

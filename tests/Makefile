@@ -6,12 +6,12 @@ TESTS =	test_int32				\
 	test_double				\
 	test_string				\
 	test_enum				\
+	test_bytes				\
 	field_key				\
 	defaults				\
-	embedded				\
-	test_bytes
+	embedded
 
-check: $(TESTS:%=%_cppreader) $(TESTS:%=%_mwriter) $(TESTS:%=%_mreader) $(TESTS:%=%_pprinter)
+check: $(TESTS:%=%_cppreader) $(TESTS:%=%_mwriter) $(TESTS:%=%_mreader) $(TESTS:%=%_pprinter) test_defaults
 	./runtests $(TESTS)
 
 $(TESTS:%=%_cppreader): %_cppreader: %_cppreader.o %.pb.o
@@ -53,6 +53,14 @@ $(TESTS:%=%.m): %.m: %.proto ../src/mprotoc
 
 Mercury.modules:
 	$(MMC) -f ../mercury/protobuf_runtime.m
+
+test_defaults: read_defaults defaults_mwriter
+	./defaults_mwriter defaults.out3
+	./read_defaults defaults.out3 > defaults.mout3
+	cmp -s defaults.mout3 defaults.defexp
+
+read_defaults: defaults.m read_defaults.m ../mercury/protobuf_runtime.m Mercury.modules
+	$(MMC) --make $@
 
 distdir:
 	cp Makefile *_template *.proto *.type *.class *.inp *.mexp \

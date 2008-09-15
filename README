@@ -1,19 +1,29 @@
-Protocol buffers for Mercury.
+Protocol buffers for Mercury
+----------------------------
 
-To build first install protoc and libprotoc
+First install Google's protoc
 (available from http://code.google.com/p/protobuf/).
 
-Then do:
+Then install a recent version of Mercury.
+
+If you are building from an svn checkout do:
 
     autoreconf -i
     ./configure
     make
+    make check
     sudo make install
 
-This will install the program mprotoc.
+If you are building from the distribution you can omit the autoreconf step.
+
+If you get a link error you may need to run ldconfig and try again.
 
 To generate a Mercury module file from a .proto file do:
 
-    mprotoc my_messages.proto --out .
+    mprotoc my_protocol.proto --out .
 
-This will generate the module my_messages.m in the current directory.
+This will generate the module my_protocol.m in the current directory.
+
+The runtime module is located in the mercury directory (protobuf_runtime.m).
+This module is not installed by default.  You can install it using mmc --make
+or you can simply copy it into your source tree.

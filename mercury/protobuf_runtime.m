@@ -47,19 +47,41 @@
 
 :- type limit == int.
 
-    % A wrapper stream to which protocol buffer messages can be
-    % read and written.
+    % A wrapper stream from which protocol buffer messages can be
+    % read.
     % The limit argument is the maximum number of bytes that should be
-    % read before a limit_exceeded error is returned.  This argument is
-    % ignored when writing.
+    % read before a limit_exceeded error is returned.
     %
-:- type pb_stream(S)
-    --->    pb_stream(S, limit).
+:- type pb_reader(S)
+    --->    pb_reader(S, limit).
 
-    % Various errors that could occur while read or writing to 
-    % protocol buffer streams.
+    % A wrapper stream to which protocol buffer messages can be
+    % written.
     %
-:- type pb_error(E)
+:- type pb_writer(S)
+    --->    pb_writer(S).
+
+:- instance stream.stream(pb_reader(S), io)
+    <= ( stream.stream(S, io) ).
+
+:- instance stream.input(pb_reader(S), io)
+    <= ( stream.input(S, io) ).
+
+:- instance stream.reader(pb_reader(S), pb_message(M), io, pb_read_error(E))
+    <= ( stream.reader(S, bitmap.byte, io, E), pb_message(M), stream.error(E) ).
+
+:- instance stream.stream(pb_writer(S), io)
+    <= ( stream.stream(S, io) ).
+
+:- instance stream.output(pb_writer(S), io)
+    <= ( stream.output(S, io) ).
+
+:- instance stream.writer(pb_writer(S), pb_message(M), io)
+    <= ( stream.writer(S, bitmap.byte, io), pb_message(M) ).
+
+    % Errors that could occur while reading from protocol buffer streams.
+    %
+:- type pb_read_error(E)
     --->    stream_error(E)
     ;       premature_eof(byte_pos)
     ;       incompatible_field_type(field_type, wire_type, field_id, byte_pos)
@@ -69,10 +91,19 @@
     ;       invalid_wiretype_tag(int, byte_pos)
     ;       unknown_endianess_on_this_platform
     ;       float_not_8_bytes_on_this_platform
-    ;       number_of_bits_in_bitmap_not_divisible_by_8(bitmap.bitmap)
     ;       some [En] unknown_enum_value(En, int)
     ;       some [M] missing_required_fields(M, sparse_bitset(field_id))
     .
+
+    % Exceptions that could be thrown while writing to protocol buffer streams.
+    %
+:- type pb_write_error
+    --->    number_of_bits_in_bitmap_not_divisible_by_8(bitmap.bitmap)
+    ;       unknown_endianess_on_this_platform
+    ;       float_not_8_bytes_on_this_platform
+    .
+
+:- instance stream.error(pb_read_error(E)) <= stream.error(E).
 
     % Generated message types are made instances of this typeclass.
     %
@@ -84,26 +115,6 @@
 
     func default_value = (M::uo) is det
 ].
-
-    % These stream instances allow you to read and write messages
-    % to any IO stream that can read or write bytes (bitmap.byte == int).
-    %
-:- instance stream.error(pb_error(E)) <= stream.error(E).
-
-:- instance stream.stream(pb_stream(S), io)
-    <= ( stream.stream(S, io) ).
-
-:- instance stream.input(pb_stream(S), io)
-    <= ( stream.input(S, io) ).
-
-:- instance stream.reader(pb_stream(S), pb_message(M), io, pb_error(E))
-    <= ( stream.reader(S, bitmap.byte, io, E), pb_message(M), stream.error(E) ).
-
-:- instance stream.output(pb_stream(S), io)
-    <= ( stream.output(S, io) ).
-
-:- instance stream.writer(pb_stream(S), pb_message(M), io)
-    <= ( stream.writer(S, bitmap.byte, io), pb_message(M) ).
 
 %-----------------------------------------------------------------------------%
 % The following are used by the generated code.
@@ -188,7 +199,7 @@
     --->    more_bytes
     ;       no_more_bytes.
 
-:- instance stream.error(pb_error(E)) <= stream.error(E)
+:- instance stream.error(pb_read_error(E)) <= stream.error(E)
 where [
     ( error_message(Err) = Msg :-
         ( Err = stream_error(E) ->
@@ -199,31 +210,42 @@ where [
     )
 ].
 
-:- instance stream.stream(pb_stream(S), io)
+:- instance stream.stream(pb_reader(S), io)
     <= ( stream.stream(S, io) )
 where [
-    ( name(pb_stream(Stream, Limit), Name, !IO) :-
+    ( name(pb_reader(Stream, Limit), Name, !IO) :-
         stream.name(Stream, StreamName, !IO),
         Name = string.format(
-            "Mercury Google protocol buffer stream with limit %i on " ++
+            "Mercury Google protocol buffer reader with limit %i on " ++
             "underlying stream '%s'", [i(Limit), s(StreamName)])
     )
 ].
 
-:- instance stream.input(pb_stream(S), io)
+:- instance stream.stream(pb_writer(S), io)
+    <= ( stream.stream(S, io) )
+where [
+    ( name(pb_writer(Stream), Name, !IO) :-
+        stream.name(Stream, StreamName, !IO),
+        Name = string.format(
+            "Mercury Google protocol buffer writer on " ++
+            "underlying stream '%s'", [s(StreamName)])
+    )
+].
+
+:- instance stream.input(pb_reader(S), io)
     <= ( stream.input(S, io) ) where [].
 
-:- instance stream.reader(pb_stream(S), pb_message(M), io, pb_error(E))
+:- instance stream.reader(pb_reader(S), pb_message(M), io, pb_read_error(E))
     <= ( stream.reader(S, byte, io, E), pb_message(M), stream.error(E) )
 where [
     pred(get/4) is pb_get
 ].
 
-:- pred pb_get(pb_stream(S)::in,
-    stream.result(pb_message(M), pb_error(E))::out, io::di, io::uo) is det
+:- pred pb_get(pb_reader(S)::in,
+    stream.result(pb_message(M), pb_read_error(E))::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E), stream.error(E), pb_message(M) ).
 
-pb_get(pb_stream(Stream, Limit), Result, !IO) :-
+pb_get(pb_reader(Stream, Limit), Result, !IO) :-
     % We copy the default value to make sure it is on the heap, since
     % we will be destructively updating it.
     copy(default_value, Message0),
@@ -248,7 +270,7 @@ pb_get(pb_stream(Stream, Limit), Result, !IO) :-
     ).
 
 :- pred build_message(S::in, limit::in, M::di,
-    stream.result(embedded_message(M), pb_error(E))::out,
+    stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, sparse_bitset(field_id)::in,
     sparse_bitset(field_id)::out, io::di, io::uo)
     is det <= ( stream.reader(S, byte, io, E), pb_message(M) ).
@@ -287,7 +309,7 @@ build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
 
 :- pred read_field_value_and_continue(S::in, limit::in,
     arg_num::in, field_type::in, field_cardinality::in, M::di,
-    stream.result(embedded_message(M), pb_error(E))::out,
+    stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out,
     sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
     is det
@@ -354,7 +376,7 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
     ).
 
 :- pred skip_field_and_continue(S::in, limit::in, M::di, wire_type::in,
-    stream.result(embedded_message(M), pb_error(E))::out,
+    stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out,
     sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
     is det
@@ -424,8 +446,8 @@ skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos,
     % This returns the bytes in reverse order.
     %
 :- pred read_n_bytes(S::in, limit::in, int::in,
-    stream.result(list(byte), pb_error(E))::out, byte_pos::in, byte_pos::out,
-    io::di, io::uo) is det
+    stream.result(list(byte), pb_read_error(E))::out,
+    byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
 read_n_bytes(Stream, Limit, N, Result, !Pos, !IO) :-
@@ -455,8 +477,8 @@ read_n_bytes(Stream, Limit, N, Result, !Pos, !IO) :-
     ).
 
 :- pred set_field_and_continue(S::in, limit::in, M::di,
-    stream.result(V, pb_error(E))::in, arg_num::in, field_cardinality::in,
-    stream.result(embedded_message(M), pb_error(E))::out,
+    stream.result(V, pb_read_error(E))::in, arg_num::in, field_cardinality::in,
+    stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out,
     sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
     is det
@@ -474,7 +496,7 @@ set_field_and_continue(Stream, Limit, Message0, ReadRes, ArgNum, Card,
         Result = error(premature_eof(!.Pos))
     ).
 
-:- pred read_key(S::in, limit::in, stream.result(key, pb_error(E))::out,
+:- pred read_key(S::in, limit::in, stream.result(key, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -494,7 +516,8 @@ read_key(Stream, Limit, Result, !Pos, !IO) :-
         Result = eof
     ).
 
-:- pred read_uvarint(S::in, limit::in, stream.result(int, pb_error(E))::out,
+:- pred read_uvarint(S::in, limit::in,
+    stream.result(int, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -509,7 +532,7 @@ read_uvarint(Stream, Limit, Result, !Pos, !IO) :-
     ;       do_not_fail_on_eof.
 
 :- pred read_uvarint_2(maybe_fail_on_eof::in, S::in, limit::in,
-    stream.result(int, pb_error(E))::out, byte_pos::in, byte_pos::out,
+    stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
     io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
 
 read_uvarint_2(MaybeFailOnEof, Stream, Limit, Result, !Pos, !IO) :-
@@ -546,7 +569,7 @@ read_uvarint_2(MaybeFailOnEof, Stream, Limit, Result, !Pos, !IO) :-
     ).
 
 :- pred read_pb_int32(S::in, limit::in,
-    stream.result(int, pb_error(E))::out, byte_pos::in, byte_pos::out,
+    stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
     io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
 
 read_pb_int32(Stream, Limit, Result, !Pos, !IO) :-
@@ -555,7 +578,7 @@ read_pb_int32(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, Result, !Pos, !IO).
 
 :- pred read_pb_sint32(S::in, limit::in,
-    stream.result(int, pb_error(E))::out, byte_pos::in, byte_pos::out,
+    stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
     io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
 
 read_pb_sint32(Stream, Limit, Result, !Pos, !IO) :-
@@ -574,7 +597,7 @@ read_pb_sint32(Stream, Limit, Result, !Pos, !IO) :-
     ).
 
 :- pred read_pb_sfixed32(S::in, limit::in,
-    stream.result(int, pb_error(E))::out, byte_pos::in, byte_pos::out,
+    stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
     io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
 
 read_pb_sfixed32(Stream, Limit, Result, !Pos, !IO) :-
@@ -603,7 +626,7 @@ read_pb_sfixed32(Stream, Limit, Result, !Pos, !IO) :-
     ).
 
 :- pred read_enum(S::in, limit::in, En::in,
-    stream.result(En, pb_error(E))::out,
+    stream.result(En, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E), pb_enumeration(En) ).
 
@@ -622,7 +645,7 @@ read_enum(Stream, Limit, RefEnum, Result, !Pos, !IO) :-
     ).
 
 :- pred read_embedded_message(S::in, limit::in, M::di,
-    stream.result(M, pb_error(E))::out,
+    stream.result(M, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E), pb_message(M) ).
 
@@ -671,7 +694,8 @@ read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
         Result = error(premature_eof(!.Pos))
     ).
 
-:- pred read_pb_string(S::in, limit::in, stream.result(string, pb_error(E))::out,
+:- pred read_pb_string(S::in, limit::in,
+    stream.result(string, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -706,7 +730,7 @@ read_pb_string(Stream, Limit, Result, !Pos, !IO) :-
 ").
 
 :- pred read_n_bytes_into_string(S::in, limit::in, int::in,
-    stream.result(string, pb_error(E))::out, byte_pos::in, byte_pos::out,
+    stream.result(string, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
     io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -715,7 +739,7 @@ read_n_bytes_into_string(Stream, Limit, N, Result, !Pos, !IO) :-
     read_n_bytes_into_string_2(Stream, Limit, 0, N, Str0, Result, !Pos, !IO).
     
 :- pred read_n_bytes_into_string_2(S::in, limit::in, int::in, int::in,
-    string::di, stream.result(string, pb_error(E))::out,
+    string::di, stream.result(string, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -740,7 +764,8 @@ read_n_bytes_into_string_2(Stream, Limit, I, N, Str0, Result, !Pos, !IO) :-
         )
     ).
 
-:- pred read_pb_bool(S::in, limit::in, stream.result(bool, pb_error(E))::out,
+:- pred read_pb_bool(S::in, limit::in,
+    stream.result(bool, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -761,7 +786,8 @@ read_pb_bool(Stream, Limit, Result, !Pos, !IO) :-
         Result = eof
     ).
 
-:- pred read_pb_double(S::in, limit::in, stream.result(float, pb_error(E))::out,
+:- pred read_pb_double(S::in, limit::in,
+    stream.result(float, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -897,7 +923,7 @@ read_pb_double(Stream, Limit, Result, !Pos, !IO) :-
 ").
 
 :- pred read_pb_bytes(S::in, limit::in,
-    stream.result(bitmap.bitmap, pb_error(E))::out,
+    stream.result(bitmap.bitmap, pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
@@ -912,8 +938,8 @@ read_pb_bytes(Stream, Limit, Result, !Pos, !IO) :-
     ).
 
 :- pred read_n_bytes_into_bitmap(S::in, limit::in, int::in,
-    stream.result(bitmap.bitmap, pb_error(E))::out, byte_pos::in, byte_pos::out,
-    io::di, io::uo) is det
+    stream.result(bitmap.bitmap, pb_read_error(E))::out,
+    byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
 read_n_bytes_into_bitmap(Stream, Limit, N, Result, !Pos, !IO) :-
@@ -921,8 +947,8 @@ read_n_bytes_into_bitmap(Stream, Limit, N, Result, !Pos, !IO) :-
     read_n_bytes_into_bitmap_2(Stream, Limit, 0, N, BM0, Result, !Pos, !IO).
     
 :- pred read_n_bytes_into_bitmap_2(S::in, limit::in, int::in, int::in,
-    bitmap::bitmap_di, stream.result(bitmap, pb_error(E))::out, byte_pos::in,
-    byte_pos::out, io::di, io::uo) is det
+    bitmap::bitmap_di, stream.result(bitmap, pb_read_error(E))::out,
+    byte_pos::in, byte_pos::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E) ).
 
 read_n_bytes_into_bitmap_2(Stream, Limit, I, N, BM0, Result, !Pos, !IO) :-
@@ -1036,18 +1062,18 @@ reverse_message_lists_2(ArgNum, !M) :-
 
 %-----------------------------------------------------------------------------%
 
-:- instance stream.output(pb_stream(S), io) <= ( stream.output(S, io) ) 
+:- instance stream.output(pb_writer(S), io) <= ( stream.output(S, io) ) 
     where
 [
-    ( flush(pb_stream(Stream, _), !IO) :-
+    ( flush(pb_writer(Stream), !IO) :-
         stream.flush(Stream, !IO)
     )
 ].
 
-:- instance stream.writer(pb_stream(S), pb_message(M), io)
+:- instance stream.writer(pb_writer(S), pb_message(M), io)
     <= ( stream.writer(S, byte, io), pb_message(M) ) where
 [
-    ( put(pb_stream(Stream, _), pb_message(Message), !IO) :-
+    ( put(pb_writer(Stream), pb_message(Message), !IO) :-
         write_message(Stream, Message, !IO)
     )
 ].
@@ -1359,10 +1385,10 @@ write_pb_double(Stream, Key, Flt, !IO) :-
             put(Stream, B7, !IO),
             put(Stream, B8, !IO)
         ;
-            throw(unknown_endianess_on_this_platform:pb_error(S))
+            throw(unknown_endianess_on_this_platform:pb_write_error)
         )
     ;
-        throw(float_not_8_bytes_on_this_platform:pb_error(S))
+        throw(float_not_8_bytes_on_this_platform:pb_write_error)
     ).
 
 :- pred write_pb_bytes(S::in, key::in, bitmap.bitmap::in, io::di, io::uo)
@@ -1377,7 +1403,7 @@ write_pb_bytes(Stream, Key, BitMap, !IO) :-
                 put(Stream, BitMap ^ unsafe_byte(I), IO0, IO1)
             ), 0, NumBytes - 1, !IO)
     ;
-        throw(number_of_bits_in_bitmap_not_divisible_by_8(BitMap):pb_error(S))
+        throw(number_of_bits_in_bitmap_not_divisible_by_8(BitMap))
     ).
 
 %-----------------------------------------------------------------------------%

@@ -21,10 +21,10 @@ main(!IO) :-
     ( Args = [File] ->
         io.open_binary_input(File, OpenRes, !IO),
         ( OpenRes = ok(Stream) ->
-            get(pb_stream(Stream, 100000), GetRes, !IO),
+            get(pb_reader(Stream, 100000), GetRes, !IO),
             ( GetRes = ok(pb_message(Message:MESSAGE_TYPE)),
                 pprint.write(0, to_doc(Message), !IO)
-            ; GetRes = error(_:pb_error(io.error)),
+            ; GetRes = error(_:pb_read_error(io.error)),
                 throw(GetRes)
             ; GetRes = eof,
                 throw(GetRes)

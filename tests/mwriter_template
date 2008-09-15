@@ -25,7 +25,7 @@ main(!IO) :-
         io.open_binary_output(File, OpenRes, !IO),
         ( OpenRes = ok(Stream) ->
             Message = MESSAGE_TERM,
-            put(pb_stream(Stream, 100000), pb_message(Message), !IO),
+            put(pb_writer(Stream), pb_message(Message), !IO),
             close_binary_output(Stream, !IO)
         ;
             throw(OpenRes)

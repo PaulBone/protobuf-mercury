@@ -1,1 +1,1 @@
-SUBDIRS = src tests mercury
+SUBDIRS = src tests mercury samples

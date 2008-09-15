@@ -35,3 +35,6 @@ like:
     MCFLAGS-my_protocol+=--inhibit-warnings
 
 to your Mercury.options file.
+
+For an example of how to use protocol buffers in Mercury, see the samples
+directory.

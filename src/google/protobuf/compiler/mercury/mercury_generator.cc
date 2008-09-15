@@ -37,25 +37,125 @@ namespace protobuf {
 namespace compiler {
 namespace mercury {
 
+//----------------------------------------------------------------------------
+
 // Strip the .proto suffix.  Copied from python_generator.cc.
-string StripProto(const string& filename) {
-  const char* suffix = HasSuffixString(filename, ".protodevel")
-      ? ".protodevel" : ".proto";
-  return StripSuffixString(filename, suffix);
-}
+string StripProto(const string& filename);
 
 // Returns the module name.
 // TODO: Allow module name to be given as an option.
-string ModuleName(const FileDescriptor* file)
-{
-    return StripProto(file->name());
-}
+string ModuleName(const FileDescriptor* file);
+
+// Convert a double to a string.
+string DoubleToStr(double d);
+
+// Convert an integer into a string.
+string IntToStr(int i);
 
 // The following functions return a vector containing all the
 // message types or enums in a proto file.  We generate a separate
 // type for each message type and enum, since Mercury doesn't have the
 // concept of nested types (you can't define a new type inside the
 // definition of another type).
+
+void FlattenNestedMessageTypes(const Descriptor *message,
+    vector<const Descriptor*> *message_types);
+
+void FlattenMessageTypes(const FileDescriptor* file,
+    vector<const Descriptor*> *message_types);
+
+void FlattenNestedEnums(const Descriptor *message,
+    vector<const EnumDescriptor*> *enums);
+
+void FlattenEnums(const FileDescriptor* file,
+    vector<const EnumDescriptor*> *enums);
+
+// Converts camel case or uppercase string to a lowercase string with
+// underscores.
+string StringToLowerCaseWithUnderScores(const string str);
+
+// Return the Mercury type name for a message type.
+string MessageTypeName(const Descriptor *message_type);
+
+// Return the Mercury type name for an enumeration.
+string EnumTypeName(const EnumDescriptor *enumeration);
+
+// Return the Mercury field name for a message type field.
+string FieldName(const FieldDescriptor *field);
+
+// Return the Mercury type for a field as a string.
+// If the wrap argument is true, then the type will be wrapped in
+// maybe or list if applicable.
+string FieldTypeName(const FieldDescriptor *field, bool wrap);
+
+// Write one field of a message type.
+void WriteMessageField(io::Printer *printer, const FieldDescriptor *field);
+
+// Write the Mercury type for a proto message type.
+// Also writes the pb_message instance declaration.
+void WriteMessageType(io::Printer *printer, const Descriptor *message_type);
+
+// Write declarations for functions to return the value of optional fields, or
+// the default value if the field is not set.
+void WriteOptionalFieldAccessorDecls(io::Printer *printer,
+    const Descriptor *message_type);
+
+// Return the default value of a field as a Mercury term.
+string FieldDefaultValueStr(const FieldDescriptor *field);
+
+// Write definitions for functions to return the value of optional fields, or
+// the default value if the field is not set.
+void WriteOptionalFieldAccessorDefs(io::Printer *printer,
+    const Descriptor *message_type);
+
+// Return the functor name for an enumeration value.
+string EnumValueName(const EnumValueDescriptor *value);
+
+// Write the Mercury type for a proto enumeration.
+// Also writes the pb_enumeration instance declaration.
+void WriteEnumType(io::Printer *printer, const EnumDescriptor *enumeration);
+
+// Write the interface section.
+void WriteInterface(io::Printer *printer, const FileDescriptor* file,
+    vector<const Descriptor*> *message_types,
+    vector<const EnumDescriptor*> *enums);
+
+// Return the protobuf_runtime.field_type value for the
+// given field.
+string FieldToPBRuntimeTypeStr(const FieldDescriptor *field);
+
+// Return the protobuf_runtime.field_cardinality value for the
+// given field.
+string FieldLabelToPBRuntimeCardStr(FieldDescriptor::Label label);
+
+// Return the initial value for a field as a Mercury term.
+string FieldInitValueStr(const FieldDescriptor *field);
+
+// Write the pb_message instance definition for a message type.
+void WriteMessageTypeInstance(io::Printer *printer,
+    const Descriptor *message_type);
+
+// Write the pb_enumeration instance definition for an enumeration.
+void WriteEnumTypeInstance(io::Printer *printer,
+    const EnumDescriptor *enumeration);
+
+// Write the implementation section.
+void WriteImplementation(io::Printer *printer, const FileDescriptor* file,
+    vector<const Descriptor*> *message_types,
+    vector<const EnumDescriptor*> *enums);
+
+//----------------------------------------------------------------------------
+
+string StripProto(const string& filename) {
+  const char* suffix = HasSuffixString(filename, ".protodevel")
+      ? ".protodevel" : ".proto";
+  return StripSuffixString(filename, suffix);
+}
+
+string ModuleName(const FileDescriptor* file)
+{
+    return StripProto(file->name());
+}
 
 void FlattenNestedMessageTypes(const Descriptor *message,
     vector<const Descriptor*> *message_types)
@@ -105,8 +205,6 @@ void FlattenEnums(const FileDescriptor* file,
     }
 }
 
-// Converts camel case or uppercase string to a lowercase string with
-// underscores.
 string StringToLowerCaseWithUnderScores(const string str)
 {
     string              rstr = "";
@@ -133,7 +231,6 @@ string StringToLowerCaseWithUnderScores(const string str)
     return rstr;
 }
 
-// Return the Mercury type name for a message type.
 string MessageTypeName(const Descriptor *message_type)
 {
     string type_name;
@@ -148,7 +245,6 @@ string MessageTypeName(const Descriptor *message_type)
     return type_name;
 }
 
-// Return the Mercury type name for an enumeration.
 string EnumTypeName(const EnumDescriptor *enumeration)
 {
     string type_name;
@@ -163,15 +259,13 @@ string EnumTypeName(const EnumDescriptor *enumeration)
     return type_name;
 }
 
-// Return the Mercury field name for a message type field.
 string FieldName(const FieldDescriptor *field)
 {
     return MessageTypeName(field->containing_type()) + "_" +
         StringToLowerCaseWithUnderScores(field->name());
 }
 
-// Return the Mercury type for a field as a string.
-string FieldTypeName(const FieldDescriptor *field)
+string FieldTypeName(const FieldDescriptor *field, bool wrap)
 {
     string type_name;
 
@@ -211,24 +305,25 @@ string FieldTypeName(const FieldDescriptor *field)
             throw field;
         }
     }
-
-    if (field->is_repeated()) {
-        type_name = "list(" + type_name + ")";
+    
+    if (wrap) {
+        if (field->is_optional()) {
+            type_name = "maybe(" + type_name + ")";
+        } else if (field->is_repeated()) {
+            type_name = "list(" + type_name + ")";
+        }
     }
 
     return type_name;
 }
 
-// Write one field of a message type.
 void WriteMessageField(io::Printer *printer, const FieldDescriptor *field)
 {
     printer->Print("$field_name$ :: $field_type_string$",
         "field_name", FieldName(field),
-        "field_type_string", FieldTypeName(field));
+        "field_type_string", FieldTypeName(field, true));
 }
 
-// Write the Mercury type for a proto message type.
-// Also writes the pb_message instance declaration.
 void WriteMessageType(io::Printer *printer, const Descriptor *message_type)
 {
     int     i;
@@ -258,15 +353,127 @@ void WriteMessageType(io::Printer *printer, const Descriptor *message_type)
         ").\n\n").c_str());
 }
 
-// Return the functor name for an enumeration value.
+void WriteOptionalFieldAccessorDecls(io::Printer *printer,
+    const Descriptor *message_type)
+{
+    int                     i;
+    int                     field_count = message_type->field_count();
+    string                  type_name = MessageTypeName(message_type);
+    const FieldDescriptor   *field;
+    map<string, string>     vars;
+
+    for (i = 0; i < field_count; i++) {
+        field = message_type->field(i);
+        if (field->is_optional() &&
+                field->type() != FieldDescriptor::TYPE_MESSAGE)
+        {
+            vars["type_name"] = type_name;
+            vars["field_name"] = FieldName(field);
+            vars["field_type"] = FieldTypeName(field, false);
+            printer->Print(vars,
+                ":- func $field_name$_or_default($type_name$) = "
+                "$field_type$.\n\n");
+        }
+    }
+}
+
+string FieldDefaultValueStr(const FieldDescriptor *field)
+{
+    switch(field->type()) {
+        case FieldDescriptor::TYPE_DOUBLE: {
+            if (field->has_default_value()) {
+                return DoubleToStr(field->default_value_double());
+            } else {
+                return "0.0";
+            }
+            break;
+        }
+        case FieldDescriptor::TYPE_INT32:
+        case FieldDescriptor::TYPE_FIXED32:
+        case FieldDescriptor::TYPE_SFIXED32:
+        case FieldDescriptor::TYPE_SINT32:
+        {
+            if (field->has_default_value()) {
+                return IntToStr(field->default_value_int32());
+            } else {
+                return "0";
+            }
+            break;
+        }
+        case FieldDescriptor::TYPE_BOOL: {
+            if (field->has_default_value()) {
+                return field->default_value_bool() ? "yes" : "no";
+            } else {
+                return "no";
+            }
+            break;
+        }
+        case FieldDescriptor::TYPE_STRING: {
+            if (field->has_default_value()) {
+                return "\"" + CEscape(field->default_value_string()) + "\"";
+            } else {
+                return "\"\"";
+            }
+            break;
+        }
+        case FieldDescriptor::TYPE_MESSAGE: {
+            return "protobuf_runtime.init_message:" +
+                MessageTypeName(field->message_type());
+        }
+        case FieldDescriptor::TYPE_ENUM: {
+            if (field->has_default_value()) {
+                return EnumValueName(field->default_value_enum());
+            } else {
+                return EnumValueName(field->enum_type()->value(0));
+            }
+        }
+        case FieldDescriptor::TYPE_BYTES: {
+            if (field->has_default_value()) {
+                return "protobuf_runtime.string_to_bitmap(\"" +
+                        CEscape(field->default_value_string()) + "\")";
+            } else {
+                return "bitmap.new(0)";
+            }
+            break;
+        }
+        default: {
+            throw field;
+        }
+    }
+}
+
+void WriteOptionalFieldAccessorDefs(io::Printer *printer,
+    const Descriptor *message_type)
+{
+    int                     i;
+    int                     field_count = message_type->field_count();
+    string                  type_name = MessageTypeName(message_type);
+    const FieldDescriptor   *field;
+    map<string, string>     vars;
+
+    for (i = 0; i < field_count; i++) {
+        field = message_type->field(i);
+        if (field->is_optional() &&
+                field->type() != FieldDescriptor::TYPE_MESSAGE)
+        {
+            vars["field_name"] = FieldName(field);
+            vars["default_value"] = FieldDefaultValueStr(field);
+            printer->Print(vars,
+                "$field_name$_or_default(Message) = Value :-\n"
+                "    ( Message ^ $field_name$ = yes(Value)\n"
+                "    ; Message ^ $field_name$ = no,\n"
+                "        Value = $default_value$\n"
+                "    ).\n\n");
+        }
+    }
+}
+
 string EnumValueName(const EnumValueDescriptor *value)
 {
     return EnumTypeName(value->type()) + "_" +
         StringToLowerCaseWithUnderScores(value->name());
 }
 
-// Write the Mercury type for a proto enumeration.
-// Also writes the pb_enumeration instance declaration.
 void WriteEnumType(io::Printer *printer, const EnumDescriptor *enumeration)
 {
     int     i;
@@ -290,7 +497,6 @@ void WriteEnumType(io::Printer *printer, const EnumDescriptor *enumeration)
         ").\n\n").c_str());
 }
 
-// Write the interface section.
 void WriteInterface(io::Printer *printer, const FileDescriptor* file,
     vector<const Descriptor*> *message_types,
     vector<const EnumDescriptor*> *enums)
@@ -300,10 +506,11 @@ void WriteInterface(io::Printer *printer, const FileDescriptor* file,
 
     printer->Print(":- interface.\n\n");
     printer->Print(
-        ":- import_module protobuf_runtime, bitmap, bool, list.\n\n");
+        ":- import_module protobuf_runtime, bitmap, bool, list, maybe.\n\n");
 
     for (i = 0; i < message_types->size(); i++) {
         WriteMessageType(printer, message_types->at(i));
+        WriteOptionalFieldAccessorDecls(printer, message_types->at(i));
     }
 
     for (i = 0; i < enums->size(); i++) {
@@ -311,7 +518,6 @@ void WriteInterface(io::Printer *printer, const FileDescriptor* file,
     }
 }
 
-// Convert an integer into a string.
 string IntToStr(int i)
 {
     std::stringstream    ss;
@@ -319,7 +525,6 @@ string IntToStr(int i)
     return ss.str();
 }
 
-// Convert a double to a string.
 string DoubleToStr(double d)
 {
     std::stringstream    ss;
@@ -329,8 +534,6 @@ string DoubleToStr(double d)
     return ss.str();
 }
 
-// Return the protobuf_runtime.field_type value for the
-// given field.
 string FieldToPBRuntimeTypeStr(const FieldDescriptor *field)
 {
     switch(field->type()) {
@@ -363,7 +566,7 @@ string FieldToPBRuntimeTypeStr(const FieldDescriptor *field)
         }
         case FieldDescriptor::TYPE_MESSAGE: {
             return "protobuf_runtime.'new embedded_message'("
-                "protobuf_runtime.default_value:" +
+                "protobuf_runtime.init_message:" +
                 MessageTypeName(field->message_type()) + ")";
         }
         case FieldDescriptor::TYPE_BYTES: {
@@ -412,89 +615,48 @@ string FieldLabelToPBRuntimeCardStr(FieldDescriptor::Label label)
     }
 }
 
-// Return the default value of a field as a Mercury term.  If the
-// field doesn't have a specified default value then a sensible
-// default is returned.
-string FieldDefaultValueStr(const FieldDescriptor *field)
+string FieldInitValueStr(const FieldDescriptor *field)
 {
-    string  default_value;
+    if (field->is_optional()) {
+        return "no";
+    }
 
-    /*
-     * Default values don't (seem to) apply to repeated fields.
-     */
     if (field->is_repeated()) {
         return "[]";
     }
 
     switch(field->type()) {
         case FieldDescriptor::TYPE_DOUBLE: {
-            if (field->has_default_value()) {
-                default_value = DoubleToStr(field->default_value_double());
-            } else {
-                default_value = "0.0";
-            }
-            break;
+            return "0.0";
         }
         case FieldDescriptor::TYPE_INT32:
         case FieldDescriptor::TYPE_SFIXED32:
         case FieldDescriptor::TYPE_SINT32:
         {
-            if (field->has_default_value()) {
-                default_value = IntToStr(field->default_value_int32());
-            } else {
-                default_value = "0";
-            }
-            break;
+            return "0";
         }
         case FieldDescriptor::TYPE_BOOL: {
-            if (field->has_default_value()) {
-                default_value = field->default_value_bool() ? "yes" : "no";
-            } else {
-                default_value = "no";
-            }
-            break;
+            return "no";
         }
         case FieldDescriptor::TYPE_STRING: {
-            if (field->has_default_value()) {
-                default_value =
-                    "\"" + CEscape(field->default_value_string()) + "\"";
-            } else {
-                default_value = "\"\"";
-            }
-            break;
+            return "\"\"";
         }
         case FieldDescriptor::TYPE_MESSAGE: {
-            default_value = "protobuf_runtime.default_value:" +
+            return "protobuf_runtime.init_message:" +
                 MessageTypeName(field->message_type());
-            break;
         }
         case FieldDescriptor::TYPE_ENUM: {
-            if (field->has_default_value()) {
-                default_value = EnumValueName(field->default_value_enum());
-            } else {
-                default_value = EnumValueName(field->enum_type()->value(0));
-            }
-            break;
+            return EnumValueName(field->enum_type()->value(0));
         }
         case FieldDescriptor::TYPE_BYTES: {
-            if (field->has_default_value()) {
-                default_value =
-                    "protobuf_runtime.string_to_bitmap(\"" +
-                        CEscape(field->default_value_string()) + "\")";
-            } else {
-                default_value = "bitmap.new(0)";
-            }
-            break;
+            return "bitmap.new(0)";
         }
         default: {
             throw field;
         }
     }
-
-    return default_value;
 }
 
-// Write the pb_message instance definition for a message type.
 void WriteMessageTypeInstance(io::Printer *printer,
     const Descriptor *message_type)
 {
@@ -509,7 +671,7 @@ void WriteMessageTypeInstance(io::Printer *printer,
 
     if (field_count == 0) {
         printer->Print("    field_info(_, 0, 0, pb_int32, required) :- semidet_fail,\n");
-        printer->Print("    default_value = $type_name$\n",
+        printer->Print("    init_message = $type_name$\n",
             "type_name", type_name);
     } else {
         for (i = 0; i < field_count; i++) {
@@ -522,11 +684,11 @@ void WriteMessageTypeInstance(io::Printer *printer,
             printer->Print(vars,
                 "    field_info(_, $field_id$, $arg_num$, $type$, $card$),\n");
         }
-        printer->Print("\n    default_value = $type_name$(",
+        printer->Print("\n    init_message = $type_name$(",
             "type_name", type_name);
         
         for (i = 0; i < field_count; i++) {
-            printer->Print(FieldDefaultValueStr(message_type->field(i)).c_str());
+            printer->Print(FieldInitValueStr(message_type->field(i)).c_str());
             if (i < field_count - 1) {
                 printer->Print(", ");
             }
@@ -538,7 +700,6 @@ void WriteMessageTypeInstance(io::Printer *printer,
     printer->Print("].\n\n");
 }
 
-// Write the pb_enumeration instance definition for an enumeration.
 void WriteEnumTypeInstance(io::Printer *printer,
     const EnumDescriptor *enumeration)
 {
@@ -563,7 +724,6 @@ void WriteEnumTypeInstance(io::Printer *printer,
     printer->Print("].\n\n");
 }
 
-// Write the implementation section.
 void WriteImplementation(io::Printer *printer, const FileDescriptor* file,
     vector<const Descriptor*> *message_types,
     vector<const EnumDescriptor*> *enums)
@@ -574,6 +734,7 @@ void WriteImplementation(io::Printer *printer, const FileDescriptor* file,
 
     for (i = 0; i < message_types->size(); i++) {
         WriteMessageTypeInstance(printer, message_types->at(i));
+        WriteOptionalFieldAccessorDefs(printer, message_types->at(i));
     }
 
     for (i = 0; i < enums->size(); i++) {

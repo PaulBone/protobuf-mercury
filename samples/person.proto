@@ -1,0 +1,19 @@
+enum Gender {
+    MALE = 0;
+    FEMALE = 1;
+}
+
+enum MaritalStatus {
+    MARRIED = 0;
+    SINGLE = 1;
+}
+
+message Person {
+    required int32 id = 1;
+    required string name = 2;
+    required Gender gender = 3;
+    required double double= 4;
+    optional string email = 5;
+    optional MaritalStatus marital_status = 6 [default = SINGLE]; 
+    repeated Person children = 7;
+}

@@ -1,0 +1,16 @@
+This directory contains a simple example of how to use protocol buffers in
+Mercury:
+
+    person.proto: defines a protocol for sending information about people.
+
+    writeread_person.m: write a person message to a file and then read it
+        in again.
+
+To build the sample, first run make in the top-level directory and then
+run make in this directory.
+
+To run the sample do:
+
+    ./writeread_person test
+
+This will write a person to the file test and then read it back in again.

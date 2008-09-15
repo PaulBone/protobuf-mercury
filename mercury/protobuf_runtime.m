@@ -113,7 +113,7 @@
     mode field_info(unused, in, out, out, out) is semidet,
     mode field_info(unused, out, in, out, out) is semidet,
 
-    func default_value = (M::uo) is det
+    func init_message = (M::uo) is det
 ].
 
 %-----------------------------------------------------------------------------%
@@ -183,6 +183,7 @@
 :- import_module deconstruct.
 :- import_module exception.
 :- import_module list.
+:- import_module maybe.
 :- import_module require.
 :- import_module store.
 :- import_module string.
@@ -248,7 +249,7 @@ where [
 pb_get(pb_reader(Stream, Limit), Result, !IO) :-
     % We copy the default value to make sure it is on the heap, since
     % we will be destructively updating it.
-    copy(default_value, Message0),
+    copy(init_message, Message0),
     build_message(Stream, Limit, Message0, Result0, 0, _Pos,
         sparse_bitset.init, FoundFieldIds, !IO),
     RequiredFieldIds = required_fields(_:M),
@@ -265,7 +266,7 @@ pb_get(pb_reader(Stream, Limit), Result, !IO) :-
             Result = eof
         )
     ;
-        Result = error('new missing_required_fields'(default_value:M,
+        Result = error('new missing_required_fields'(init_message:M,
             sparse_bitset.difference(RequiredFieldIds, FoundFieldIds)))
     ).
 
@@ -682,7 +683,7 @@ read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
                     Result = error(premature_eof(!.Pos))
                 )
             ;
-                Result = error('new missing_required_fields'(default_value:M,
+                Result = error('new missing_required_fields'(init_message:M,
                     sparse_bitset.difference(RequiredFieldIds, FoundFieldIds)))
             )
         ;
@@ -978,13 +979,11 @@ read_n_bytes_into_bitmap_2(Stream, Limit, I, N, BM0, Result, !Pos, !IO) :-
     M::di, M::uo) is det.
 
 set_message_field(ArgNum, Card, Value, !Message) :-
-    (
-        ( Card = required
-        ; Card = optional
-        ),
+    ( Card = required,
         set_arg(ArgNum, Value, !Message)
-    ;
-        Card = repeated,
+    ; Card = optional,
+        set_arg(ArgNum, yes(Value), !Message)
+    ; Card = repeated,
         set_list_arg(ArgNum, Value, !Message)
     ).
 
@@ -1318,11 +1317,15 @@ write_enum(Stream, Key, EnumVal, !IO) :-
     is det.
 
 arg_to_value_list(Arg, Card, Values) :-
-    (
-        ( Card = required
-        ; Card = optional
-        ),
+    ( Card = required,
         det_dynamic_cast([Arg], Values)
+    ; Card = optional,
+        det_dynamic_cast(Arg, MaybeArg),
+        ( MaybeArg = yes(Val),
+            Values = [Val]
+        ; MaybeArg = no,
+            Values = []
+        )
     ; Card = repeated,
         det_dynamic_cast(Arg, Values)
     ).

@@ -1,0 +1,6 @@
+#!/bin/sh
+cp $1.inp $2.inp
+cp $1.proto $2.proto
+cp $1.class $2.class
+cp $1.type $2.type
+cp $1.cppexp $2.cppexp

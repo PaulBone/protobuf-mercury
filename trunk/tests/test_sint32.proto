@@ -1,0 +1,3 @@
+message SInt32Message {
+    repeated sint32 f = 1;
+}

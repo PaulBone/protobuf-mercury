@@ -1,0 +1,45 @@
+:- module TEST_mwriter.
+
+:- interface.
+
+:- import_module io.
+
+:- pred main(io::di, io::uo) is det.
+
+:- implementation.
+
+:- import_module protobuf_runtime.
+:- import_module TEST.
+
+:- import_module bitmap.
+:- import_module bool.
+:- import_module exception.
+:- import_module int.
+:- import_module maybe.
+:- import_module list.
+:- import_module stream.
+
+main(!IO) :-
+    io.command_line_arguments(Args, !IO),
+    ( Args = [File] ->
+        io.open_binary_output(File, OpenRes, !IO),
+        ( OpenRes = ok(Stream) ->
+            Message = MESSAGE_TERM,
+            put(pb_writer(Stream), pb_message(Message), !IO),
+            close_binary_output(Stream, !IO)
+        ;
+            throw(OpenRes)
+        )
+    ;
+        throw("expecting one arg")
+    ),
+    io.nl(!IO).
+
+:- func det_bm_from_string(string) = bitmap.
+
+det_bm_from_string(Str) = BM :-
+    ( BM0 = bitmap.from_string(Str) ->
+        BM = BM0
+    ;
+        throw("invalid bitmap string")
+    ).

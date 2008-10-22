@@ -1,0 +1,28 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include "TEST.pb.h"
+
+using namespace std;
+
+int main(int argc, char *argv[])
+{
+    if (argc != 4) {
+        cerr << "expecting 3 args";
+        return 1;
+    } else {
+        MESSAGE_CLASS m;
+        fstream in(argv[1], ios::in | ios::binary);
+        if (!m.ParseFromIstream(&in)) {
+            cerr << "failed to parse";
+            return 1;
+        }
+        fstream out(argv[2], ios::out | ios::binary | ios::trunc);
+        m.SerializeToOstream(&out);
+        out.close();
+        fstream dbout(argv[3], ios::out | ios::trunc);
+        dbout << m.DebugString();
+        dbout.close();
+        return 0;
+    }
+}

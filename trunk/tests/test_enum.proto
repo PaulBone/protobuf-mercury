@@ -1,0 +1,24 @@
+enum Colour {
+    RED = 0;
+    BLUE = 1;
+    GREEN = 2;
+    MAGENTA = 99999;
+    CYAN = 2147483647;
+    YELLOW = 123;
+}
+
+enum YesNo {
+    YES = 1;
+    NO = 0;
+}
+
+message EnumMessage {
+    enum DataType {
+        INT = 10;
+        STRING = 20;
+        BOOL = 30;
+    }
+    repeated Colour colour = 1;
+    optional DataType datatype = 3 [default = STRING];
+    required YesNo yes_or_no = 2;
+}

@@ -1,0 +1,5 @@
+message FieldKeyMessage {
+    required int32 f1 = 536870911;
+    required double F2 = 1;
+    required string f3 = 536870910;
+}

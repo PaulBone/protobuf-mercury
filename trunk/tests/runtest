@@ -1,0 +1,29 @@
+#!/bin/sh
+set -x
+# Remove any generated files that might be lying around from previous
+# tests.
+rm -f $1.out1 $1.out2 $1.mout1 $1.mout2 $1.cppout $1.mexp11
+
+# Generate the expected output from the input if it hasn't been supplied.
+if test -f $1.mexp; then
+    cp $1.mexp $1.mexp1
+else
+    echo . | cat $1.inp - | ./$1_pprinter > $1.mexp1
+fi
+
+# Write a message to $1.out1 using the Mercury writer.
+./$1_mwriter $1.out1 || exit 1
+# Test we can read the message with the Mercury reader.
+# This pretty prints the read term to $1.mout1.
+./$1_mreader $1.out1 > $1.mout1 || exit 1
+# Check the term is correct.
+cmp -s $1.mout1 $1.mexp1 || exit 1
+# Test that we can read the message with the C++ reader.
+# This writes the debug output for the message to $1.cppout and the binary
+# output to $1.out2.
+./$1_cppreader $1.out1 $1.out2 $1.cppout || exit 1
+# Check the debug output is what we expect.
+cmp -s $1.cppout $1.cppexp || exit 1
+# Check that we can read the message written by C++ with the Mercury reader.
+./$1_mreader $1.out2 > $1.mout2 || exit 1
+cmp -s $1.mout2 $1.mexp1 || exit 1

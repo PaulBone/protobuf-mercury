@@ -1,0 +1,11 @@
+enum Enum1 {
+    OPTION1 = 3;
+    OPTION2 = 15;
+}
+
+message DefaultsMessage {
+    optional sint32 f1 = 1 [default = 42];
+    optional double f2 = 2 [default = 1.0];
+    optional Enum1 f3 = 3 [default = OPTION2];
+    optional string f4 = 4;
+}

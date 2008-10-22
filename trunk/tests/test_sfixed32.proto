@@ -1,0 +1,3 @@
+message Sfixed32Message {
+    repeated sfixed32 f = 1;
+}

@@ -1,0 +1,3 @@
+message Int32Message {
+    repeated int32 f = 1;
+}

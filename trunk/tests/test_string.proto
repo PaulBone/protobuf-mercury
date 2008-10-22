@@ -1,0 +1,3 @@
+message StringMessage {
+    repeated string f = 1;
+}

@@ -39,19 +39,6 @@ namespace mercury {
 
 //----------------------------------------------------------------------------
 
-// Strip the .proto suffix.  Copied from python_generator.cc.
-string StripProto(const string& filename);
-
-// Returns the module name.
-// TODO: Allow module name to be given as an option.
-string ModuleName(const FileDescriptor* file);
-
-// Convert a double to a string.
-string DoubleToStr(double d);
-
-// Convert an integer into a string.
-string IntToStr(int i);
-
 // The following functions return a vector containing all the
 // message types or enums in a proto file.  We generate a separate
 // type for each message type and enum, since Mercury doesn't have the
@@ -70,10 +57,6 @@ void FlattenNestedEnums(const Descriptor *message,
 void FlattenEnums(const FileDescriptor* file,
     vector<const EnumDescriptor*> *enums);
 
-// Converts camel case or uppercase string to a lowercase string with
-// underscores.
-string StringToLowerCaseWithUnderScores(const string str);
-
 // Return the Mercury type name for a message type.
 string MessageTypeName(const Descriptor *message_type);
 
@@ -88,6 +71,23 @@ string FieldName(const FieldDescriptor *field);
 // maybe or list if applicable.
 string FieldTypeName(const FieldDescriptor *field, bool wrap);
 
+// Return the default value of a field as a Mercury term.
+string FieldDefaultValueStr(const FieldDescriptor *field);
+
+// Return the functor name for an enumeration value.
+string EnumValueName(const EnumValueDescriptor *value);
+
+// Return the protobuf_runtime.field_type value for the
+// given field.
+string FieldToPBRuntimeTypeStr(const FieldDescriptor *field);
+
+// Return the protobuf_runtime.field_cardinality value for the
+// given field.
+string FieldLabelToPBRuntimeCardStr(FieldDescriptor::Label label);
+
+// Return the initial value for a field as a Mercury term.
+string FieldInitValueStr(const FieldDescriptor *field);
+
 // Write one field of a message type.
 void WriteMessageField(io::Printer *printer, const FieldDescriptor *field);
 
@@ -100,16 +100,10 @@ void WriteMessageType(io::Printer *printer, const Descriptor *message_type);
 void WriteOptionalFieldAccessorDecls(io::Printer *printer,
     const Descriptor *message_type);
 
-// Return the default value of a field as a Mercury term.
-string FieldDefaultValueStr(const FieldDescriptor *field);
-
 // Write definitions for functions to return the value of optional fields, or
 // the default value if the field is not set.
 void WriteOptionalFieldAccessorDefs(io::Printer *printer,
     const Descriptor *message_type);
-
-// Return the functor name for an enumeration value.
-string EnumValueName(const EnumValueDescriptor *value);
 
 // Write the Mercury type for a proto enumeration.
 // Also writes the pb_enumeration instance declaration.
@@ -119,17 +113,6 @@ void WriteEnumType(io::Printer *printer, const EnumDescriptor *enumeration);
 void WriteInterface(io::Printer *printer, const FileDescriptor* file,
     vector<const Descriptor*> *message_types,
     vector<const EnumDescriptor*> *enums);
-
-// Return the protobuf_runtime.field_type value for the
-// given field.
-string FieldToPBRuntimeTypeStr(const FieldDescriptor *field);
-
-// Return the protobuf_runtime.field_cardinality value for the
-// given field.
-string FieldLabelToPBRuntimeCardStr(FieldDescriptor::Label label);
-
-// Return the initial value for a field as a Mercury term.
-string FieldInitValueStr(const FieldDescriptor *field);
 
 // Write the pb_message instance definition for a message type.
 void WriteMessageTypeInstance(io::Printer *printer,
@@ -143,6 +126,27 @@ void WriteEnumTypeInstance(io::Printer *printer,
 void WriteImplementation(io::Printer *printer, const FileDescriptor* file,
     vector<const Descriptor*> *message_types,
     vector<const EnumDescriptor*> *enums);
+
+//----------------------------------------------------------------------------
+// Misc stuff.
+//
+
+// Strip the .proto suffix.  Copied from python_generator.cc.
+string StripProto(const string& filename);
+
+// Returns the module name.
+// TODO: Allow module name to be given as an option.
+string ModuleName(const FileDescriptor* file);
+
+// Convert a double to a string.
+string DoubleToStr(double d);
+
+// Convert an integer into a string.
+string IntToStr(int i);
+
+// Converts camel case or uppercase string to a lowercase string with
+// underscores.
+string StringToLowerCaseWithUnderScores(const string str);
 
 //----------------------------------------------------------------------------
 

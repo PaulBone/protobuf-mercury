@@ -64,7 +64,8 @@ read_defaults: defaults.m read_defaults.m ../mercury/protobuf_runtime.m Mercury.
 
 distdir:
 	cp Makefile *_template *.proto *.type *.class *.inp *.mexp \
-		*.cppexp runtest runtests $(distdir)
+		*.cppexp runtest runtests Mercury.options read_defaults.m \
+		*.defexp $(distdir)
 
 #############################################################################
 # Other targets required by automake:

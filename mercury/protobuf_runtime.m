@@ -743,7 +743,7 @@ read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
     ; VarIntRes = error(Err),
         Result = error(Err)
     ; VarIntRes = eof,
-        Result = error(premature_eof(!.Pos))
+        Result = eof
     ).
 
 :- pred read_pb_string(S::in, limit::in,

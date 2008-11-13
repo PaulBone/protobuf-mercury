@@ -55,6 +55,15 @@
 :- type pb_message(M)
     --->    pb_message(M).
 
+    % An embdedded protocol buffer message.
+    % This is the same as a pb_message, except that the length of
+    % the message precedes it on the wire.  This is useful for
+    % sending multiple messages down the same open connection, or
+    % mixing protobuf messages with other data.
+    %
+:- type pb_embedded_message(M)
+    --->    pb_embedded_message(M).
+
 :- type limit == int.
 
     % A wrapper stream from which protocol buffer messages can be
@@ -80,6 +89,10 @@
 :- instance stream.reader(pb_reader(S), pb_message(M), io, pb_read_error(E))
     <= ( stream.reader(S, bitmap.byte, io, E), pb_message(M), stream.error(E) ).
 
+:- instance stream.reader(pb_reader(S), pb_embedded_message(M), io,
+    pb_read_error(E))
+    <= ( stream.reader(S, bitmap.byte, io, E), pb_message(M), stream.error(E) ).
+
 :- instance stream.stream(pb_writer(S), io)
     <= ( stream.stream(S, io) ).
 
@@ -87,6 +100,9 @@
     <= ( stream.output(S, io) ).
 
 :- instance stream.writer(pb_writer(S), pb_message(M), io)
+    <= ( stream.writer(S, bitmap.byte, io), pb_message(M) ).
+
+:- instance stream.writer(pb_writer(S), pb_embedded_message(M), io)
     <= ( stream.writer(S, bitmap.byte, io), pb_message(M) ).
 
     % Errors that could occur while reading from protocol buffer streams.
@@ -252,6 +268,13 @@ where [
     pred(get/4) is pb_get
 ].
 
+:- instance stream.reader(pb_reader(S), pb_embedded_message(M), io,
+    pb_read_error(E))
+    <= ( stream.reader(S, byte, io, E), pb_message(M), stream.error(E) )
+where [
+    pred(get/4) is pb_get_embedded
+].
+
 :- pred pb_get(pb_reader(S)::in,
     stream.result(pb_message(M), pb_read_error(E))::out, io::di, io::uo) is det
     <= ( stream.reader(S, byte, io, E), stream.error(E), pb_message(M) ).
@@ -278,6 +301,24 @@ pb_get(pb_reader(Stream, Limit), Result, !IO) :-
     ;
         Result = error('new missing_required_fields'(init_message:M,
             sparse_bitset.difference(RequiredFieldIds, FoundFieldIds)))
+    ).
+
+:- pred pb_get_embedded(pb_reader(S)::in,
+    stream.result(pb_embedded_message(M),
+    pb_read_error(E))::out, io::di, io::uo) is det
+    <= ( stream.reader(S, byte, io, E), stream.error(E), pb_message(M) ).
+
+pb_get_embedded(pb_reader(Stream, Limit), Result, !IO) :-
+    % We copy the default value to make sure it is on the heap, since
+    % we will be destructively updating it.
+    copy(init_message, Message0),
+    read_embedded_message(Stream, Limit, Message0, Result0, 0, _Pos, !IO),
+    ( Result0 = ok(Message),
+        Result = ok(pb_embedded_message(Message))
+    ; Result0 = error(Err),
+        Result = error(Err)
+    ; Result0 = eof,
+        Result = eof
     ).
 
 :- pred build_message(S::in, limit::in, M::di,
@@ -1087,6 +1128,14 @@ reverse_message_lists_2(ArgNum, !M) :-
     )
 ].
 
+:- instance stream.writer(pb_writer(S), pb_embedded_message(M), io)
+    <= ( stream.writer(S, byte, io), pb_message(M) ) where
+[
+    ( put(pb_writer(Stream), pb_embedded_message(Message), !IO) :-
+        write_embedded_message(Stream, Message, !IO)
+    )
+].
+
     % This stream is used to count the number of bytes in a message
     % which we have to do before we send an embedded message down the real
     % stream, so that we can write the length before the embedded message.
@@ -1186,7 +1235,8 @@ write_field(Stream, Key, FieldType, Card, Arg, !IO) :-
         list.foldl(write_enum(Stream, Key), Values:list(En), !IO)
     ; FieldType = embedded_message(_:M),
         arg_to_value_list(Arg, Card, Values),
-        list.foldl(write_embedded_message(Stream, Key), Values:list(M), !IO)
+        list.foldl(write_embedded_message_and_key(Stream, Key),
+            Values:list(M), !IO)
     ).
 
 :- pred write_pb_string(S::in, key::in, string::in, io::di, io::uo) is det
@@ -1350,10 +1400,17 @@ det_dynamic_cast(T, U) :-
             "type mismatch")
     ).
 
-:- pred write_embedded_message(S::in, key::in, M::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io), pb_message(M) ).
+:- pred write_embedded_message_and_key(S::in, key::in, M::in, io::di, io::uo)
+    is det <= ( stream.writer(S, byte, io), pb_message(M) ).
 
-write_embedded_message(Stream, Key, Message, !IO) :-
+write_embedded_message_and_key(Stream, Key, Message, !IO) :-
+    write_key(Stream, Key, !IO),
+    write_embedded_message(Stream, Message, !IO).
+
+:- pred write_embedded_message(S::in, M::in, io::di, io::uo)
+    is det <= ( stream.writer(S, byte, io), pb_message(M) ).
+
+write_embedded_message(Stream, Message, !IO) :-
     % We first write the message to a byte_counter stream to determine the
     % length.  Then we write it to the target stream.
     % Another way to do this would be to write the message to a bit_buffer
@@ -1362,10 +1419,6 @@ write_embedded_message(Stream, Key, Message, !IO) :-
     % of calling write_message again.  This may however create a lot of garbage
     % if there are a lot of embedded messages, which is why we use the counting
     % approach instead.
-    %
-    write_key(Stream, Key, !IO),
-    % Write the message to a byte_counter stream first to determine the message
-    % length.
     store.new_mutvar(0, MutVar, !IO),
     write_message(byte_counter(MutVar), Message, !IO),
     store.get_mutvar(MutVar, Length, !IO),

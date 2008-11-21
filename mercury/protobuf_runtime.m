@@ -1125,6 +1125,7 @@ reverse_message_lists_2(ArgNum, !M) :-
 [
     ( put(pb_writer(Stream), pb_message(Message), !IO) :-
         write_message(Stream, Message, !IO)
+        %table_reset_for_message_size_1(!IO)
     )
 ].
 
@@ -1133,12 +1134,13 @@ reverse_message_lists_2(ArgNum, !M) :-
 [
     ( put(pb_writer(Stream), pb_embedded_message(Message), !IO) :-
         write_embedded_message(Stream, Message, !IO)
+        %table_reset_for_message_size_1(!IO)
     )
 ].
 
     % This stream is used to count the number of bytes in a message
-    % which we have to do before we send an embedded message down the real
-    % stream, so that we can write the length before the embedded message.
+    % which is then compared to the result of message_size when assertion
+    % checking is enabled.
     %
 :- type byte_counter
     --->    byte_counter(io_mutvar(int)).
@@ -1347,13 +1349,18 @@ write_neg_varint_2(Stream, Chunk, N, !IO) :-
     <= ( stream.writer(S, byte, io) ).
 
 write_pb_sint32(Stream, Key, N, !IO) :-
+    write_key(Stream, Key, !IO),
+    ZigZagN = zigzag_encode(N),
+    write_uvarint(Stream, ZigZagN, !IO).
+
+:- func zigzag_encode(int) = int.
+
+zigzag_encode(N) = ZigZagN :-
     ( N >= 0 ->
         ZigZagN = N `unsigned_left_shift` 1
     ;
         ZigZagN = (int.abs(N) `unsigned_left_shift` 1) `unsigned_minus` 1
-    ),
-    write_key(Stream, Key, !IO),
-    write_uvarint(Stream, ZigZagN, !IO).
+    ).
 
 :- pred write_pb_sfixed32(S::in, key::in, int::in, io::di, io::uo) is det
     <= ( stream.writer(S, byte, io) ).
@@ -1411,19 +1418,18 @@ write_embedded_message_and_key(Stream, Key, Message, !IO) :-
     is det <= ( stream.writer(S, byte, io), pb_message(M) ).
 
 write_embedded_message(Stream, Message, !IO) :-
-    % We first write the message to a byte_counter stream to determine the
-    % length.  Then we write it to the target stream.
-    % Another way to do this would be to write the message to a bit_buffer
-    % first and check the number of bytes in the bit_buffer.  Then we could
-    % just transfer the bytes in the bit_buffer to the target stream instead
-    % of calling write_message again.  This may however create a lot of garbage
-    % if there are a lot of embedded messages, which is why we use the counting
-    % approach instead.
-    store.new_mutvar(0, MutVar, !IO),
-    write_message(byte_counter(MutVar), Message, !IO),
-    store.get_mutvar(MutVar, Length, !IO),
+    Length = message_size(Message),
+    trace [compile_time(flag("pb_assertions")), io(!IO)] (
+        store.new_mutvar(0, MutVar, !IO),
+        write_message(byte_counter(MutVar), Message, !IO),
+        store.get_mutvar(MutVar, RealLength, !IO),
+        ( RealLength \= Length ->
+            error("write_embedded_message: assertion failure")
+        ;
+            true
+        )
+    ),
     write_uvarint(Stream, Length, !IO),
-    % Now write the message to the real stream.
     write_message(Stream, Message, !IO).
 
 :- pred write_pb_double(S::in, key::in, float::in, io::di, io::uo) is det
@@ -1463,6 +1469,150 @@ write_pb_bytes(Stream, Key, BitMap, !IO) :-
     ;
         throw(number_of_bits_in_bitmap_not_divisible_by_8(BitMap))
     ).
+
+%-----------------------------------------------------------------------------%
+
+    % Get the number of bytes required to serialize a message.
+    %
+:- func message_size(M) = int <= pb_message(M).
+
+% The pragma memo may help with performance where there is
+% a lot of nested messages, but I haven't verified this with
+% any benchmarking yet, so it's disabled for now.
+%:- pragma memo(message_size/1, [fast_loose, allow_reset]).
+
+message_size(Message) = Size :-
+    add_arg_sizes(Message, 0, 0, Size).
+
+:- pred add_arg_sizes(M::in, arg_num::in, int::in, int::out) is det
+    <= pb_message(M).
+
+add_arg_sizes(Message, ArgNum, !Size) :-
+    ( field_info(Message, FieldId, ArgNum, FieldType, Card) ->
+        ( deconstruct.arg(Message, do_not_allow, ArgNum, Arg) ->
+            add_arg_size(FieldId, FieldType, Card, Arg, !Size),
+            add_arg_sizes(Message, ArgNum + 1, !Size)
+        ;
+            error("protobuf_runtime: internal error: " ++
+                "add_arg_sizes: missing arg")
+        )
+    ;
+        % No more arguments.
+        true
+    ).
+
+:- func key_size(field_id) = int.
+
+key_size(FieldId) = Size :-
+    add_uvarint_size(FieldId << 3, 0, Size).
+
+:- pred add_arg_size(field_id::in, field_type::in, field_cardinality::in,
+    T::in, int::in, int::out) is det.
+
+add_arg_size(FieldId, FieldType, Card, Arg, !Size) :-
+    ( FieldType = pb_double,
+        arg_to_value_list(Arg, Card, Values:list(float)),
+        NumVals = list.length(Values),
+        !:Size = !.Size + (NumVals * 8)
+    ; FieldType = pb_float,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_int32,
+        arg_to_value_list(Arg, Card, Values),
+        NumVals = list.length(Values),
+        list.foldl(add_pb_int32_size, Values, !Size)
+    ; FieldType = pb_int64,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_uint32,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_uint64,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_sint32,
+        arg_to_value_list(Arg, Card, Values),
+        NumVals = list.length(Values),
+        list.foldl(add_pb_sint32_size, Values, !Size)
+    ; FieldType = pb_sint64,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_fixed32,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_fixed64,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_sfixed32,
+        arg_to_value_list(Arg, Card, Values:list(int)),
+        NumVals = list.length(Values),
+        !:Size = !.Size + (NumVals * 4)
+    ; FieldType = pb_sfixed64,
+        error("unsupported field type: " ++ string(FieldType))
+    ; FieldType = pb_bool,
+        arg_to_value_list(Arg, Card, Values:list(bool)),
+        NumVals = list.length(Values),
+        !:Size = !.Size + NumVals
+    ; FieldType = pb_string,
+        arg_to_value_list(Arg, Card, Values),
+        NumVals = list.length(Values),
+        list.foldl(add_pb_string_size, Values, !Size)
+    ; FieldType = pb_bytes,
+        arg_to_value_list(Arg, Card, Values),
+        NumVals = list.length(Values),
+        list.foldl(add_pb_string_size, Values, !Size)
+    ; FieldType = enumeration(_:En),
+        arg_to_value_list(Arg, Card, Values),
+        NumVals = list.length(Values),
+        list.foldl(add_pb_enum_size, Values:list(En), !Size)
+    ; FieldType = embedded_message(_:M),
+        arg_to_value_list(Arg, Card, Values),
+        NumVals = list.length(Values),
+        list.foldl(add_pb_embedded_message_size, Values:list(M), !Size)
+    ),
+    % Add the space required by the keys.
+    !:Size = !.Size + (NumVals * key_size(FieldId)).
+
+:- pred add_pb_int32_size(int::in, int::in, int::out) is det.
+
+add_pb_int32_size(Int, !Size) :-
+    ( Int < 0 ->
+        % Negative int32s are always ten bytes long.
+        !:Size = !.Size + 10
+    ;
+        add_uvarint_size(Int, !Size)
+    ).
+
+:- pred add_uvarint_size(int::in, int::in, int::out) is det.
+
+add_uvarint_size(Int, !Size) :-
+    !:Size = !.Size + 1,
+    ( Int `unsigned_less_than` 0b10000000 ->
+        true
+    ;
+        add_uvarint_size(Int `unsigned_right_shift` 7, !Size)
+    ).
+
+:- pred add_pb_sint32_size(int::in, int::in, int::out) is det.
+
+add_pb_sint32_size(Int, !Size) :-
+    ZigZagInt = zigzag_encode(Int),
+    add_uvarint_size(ZigZagInt, !Size).
+
+:- pred add_pb_string_size(string::in, int::in, int::out) is det.
+
+add_pb_string_size(Str, !Size) :-
+    Length = string.length(Str),
+    add_uvarint_size(Length, !Size),
+    !:Size = !.Size + Length.
+
+:- pred add_pb_enum_size(E::in, int::in, int::out) is det
+    <= pb_enumeration(E).
+
+add_pb_enum_size(EnumVal, !Size) :-
+    enum_int(EnumVal, Int),
+    add_uvarint_size(Int, !Size).
+
+:- pred add_pb_embedded_message_size(M::in, int::in, int::out) is det
+    <= pb_message(M).
+
+add_pb_embedded_message_size(Message, !Size) :-
+    Length = message_size(Message),
+    add_uvarint_size(Length, !Size),
+    !:Size = !.Size + Length.
 
 %-----------------------------------------------------------------------------%
 

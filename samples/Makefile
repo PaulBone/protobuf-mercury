@@ -1,6 +1,12 @@
 include ../Make.common
 
+.PHONY: all
+all: writeread_person writeread_bitmap
+
 writeread_person: writeread_person.m Mercury.modules ../mercury/protobuf_runtime.m person.m
+	$(MMC) --make $@
+
+writeread_bitmap: writeread_bitmap.m Mercury.modules ../mercury/protobuf_runtime.m person.m
 	$(MMC) --make $@
 
 person.m: person.proto ../src/mprotoc

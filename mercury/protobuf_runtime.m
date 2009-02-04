@@ -200,10 +200,22 @@
     %
 :- func string_to_bitmap(string::in) = (bitmap.bitmap::uo) is det.
 
+    % Convert a message to its binary representation as a bitmap.
+    %
+:- func message_to_bitmap(M::in) = (bitmap.bitmap::uo) is det <= pb_message(M).
+
+    % Convert a binary representation of a message inside a bitmap
+    % into a message.
+    %
+:- pred bitmap_to_message(bitmap.bitmap::bitmap_ui, io.res(M)::out) is det
+    <= pb_message(M).
+
 %-----------------------------------------------------------------------------%
 
 :- implementation.
 
+:- import_module bit_buffer.
+:- import_module bit_buffer.write.
 :- import_module bool.
 :- import_module char.
 :- import_module deconstruct.
@@ -276,8 +288,8 @@ where [
 ].
 
 :- pred pb_get(pb_reader(S)::in,
-    stream.result(pb_message(M), pb_read_error(E))::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E), stream.error(E), pb_message(M) ).
+    stream.result(pb_message(M), pb_read_error(E))::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E), stream.error(E), pb_message(M) ).
 
 pb_get(pb_reader(Stream, Limit), Result, !IO) :-
     % We copy the default value to make sure it is on the heap, since
@@ -305,8 +317,8 @@ pb_get(pb_reader(Stream, Limit), Result, !IO) :-
 
 :- pred pb_get_embedded(pb_reader(S)::in,
     stream.result(pb_embedded_message(M),
-    pb_read_error(E))::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E), stream.error(E), pb_message(M) ).
+    pb_read_error(E))::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E), stream.error(E), pb_message(M) ).
 
 pb_get_embedded(pb_reader(Stream, Limit), Result, !IO) :-
     % We copy the default value to make sure it is on the heap, since
@@ -324,8 +336,8 @@ pb_get_embedded(pb_reader(Stream, Limit), Result, !IO) :-
 :- pred build_message(S::in, limit::in, M::di,
     stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out, sparse_bitset(field_id)::in,
-    sparse_bitset(field_id)::out, io::di, io::uo)
-    is det <= ( stream.reader(S, byte, io, E), pb_message(M) ).
+    sparse_bitset(field_id)::out, IO::di, IO::uo)
+    is det <= ( stream.reader(S, byte, IO, E), pb_message(M) ).
 
 build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
     ( Limit =< !.Pos ->
@@ -363,9 +375,9 @@ build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
     arg_num::in, field_type::in, field_cardinality::in, M::di,
     stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out,
-    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
+    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, IO::di, IO::uo)
     is det
-    <= ( stream.reader(S, byte, io, E), pb_message(M) ).
+    <= ( stream.reader(S, byte, IO, E), pb_message(M) ).
 
 read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
         Card, Message0, Result, !Pos, !FieldIds, !IO) :-
@@ -430,9 +442,9 @@ read_field_value_and_continue(Stream, Limit, ArgNum, FieldType,
 :- pred skip_field_and_continue(S::in, limit::in, M::di, wire_type::in,
     stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out,
-    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
+    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, IO::di, IO::uo)
     is det
-    <= ( stream.reader(S, byte, io, E), pb_message(M) ).
+    <= ( stream.reader(S, byte, IO, E), pb_message(M) ).
 
 skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos,
         !FieldIds, !IO) :-
@@ -499,8 +511,8 @@ skip_field_and_continue(Stream, Limit, Message0, WireType, Result, !Pos,
     %
 :- pred read_n_bytes(S::in, limit::in, int::in,
     stream.result(list(byte), pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_n_bytes(Stream, Limit, N, Result, !Pos, !IO) :-
     ( N =< 0 ->
@@ -532,9 +544,9 @@ read_n_bytes(Stream, Limit, N, Result, !Pos, !IO) :-
     stream.result(V, pb_read_error(E))::in, arg_num::in, field_cardinality::in,
     stream.result(embedded_message(M), pb_read_error(E))::out,
     byte_pos::in, byte_pos::out,
-    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, io::di, io::uo)
+    sparse_bitset(field_id)::in, sparse_bitset(field_id)::out, IO::di, IO::uo)
     is det
-    <= ( stream.reader(S, byte, io, E), pb_message(M) ).
+    <= ( stream.reader(S, byte, IO, E), pb_message(M) ).
 
 set_field_and_continue(Stream, Limit, Message0, ReadRes, ArgNum, Card,
         Result, !Pos, !FieldIds, !IO) :-
@@ -549,8 +561,8 @@ set_field_and_continue(Stream, Limit, Message0, ReadRes, ArgNum, Card,
     ).
 
 :- pred read_key(S::in, limit::in, stream.result(key, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_key(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
@@ -570,8 +582,8 @@ read_key(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_uvarint(S::in, limit::in,
     stream.result(int, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_uvarint(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint_2(do_not_fail_on_eof, Stream, Limit, Result, !Pos, !IO).
@@ -585,7 +597,7 @@ read_uvarint(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_uvarint_2(maybe_fail_on_eof::in, S::in, limit::in,
     stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
-    io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
+    IO::di, IO::uo) is det <= ( stream.reader(S, byte, IO, E) ).
 
 read_uvarint_2(MaybeFailOnEof, Stream, Limit, Result, !Pos, !IO) :-
     ( Limit =< !.Pos ->
@@ -622,7 +634,7 @@ read_uvarint_2(MaybeFailOnEof, Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_pb_int32(S::in, limit::in,
     stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
-    io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
+    IO::di, IO::uo) is det <= ( stream.reader(S, byte, IO, E) ).
 
 read_pb_int32(Stream, Limit, Result, !Pos, !IO) :-
     % Since negative ints are always stored in ten seven bit chunks, the
@@ -631,7 +643,7 @@ read_pb_int32(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_pb_sint32(S::in, limit::in,
     stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
-    io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
+    IO::di, IO::uo) is det <= ( stream.reader(S, byte, IO, E) ).
 
 read_pb_sint32(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
@@ -650,7 +662,7 @@ read_pb_sint32(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_pb_sfixed32(S::in, limit::in,
     stream.result(int, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
-    io::di, io::uo) is det <= ( stream.reader(S, byte, io, E) ).
+    IO::di, IO::uo) is det <= ( stream.reader(S, byte, IO, E) ).
 
 read_pb_sfixed32(Stream, Limit, Result, !Pos, !IO) :-
     read_n_bytes(Stream, Limit, 4, BytesRes, !Pos, !IO),
@@ -679,8 +691,8 @@ read_pb_sfixed32(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_enum(S::in, limit::in, En::in,
     stream.result(En, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E), pb_enumeration(En) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E), pb_enumeration(En) ).
 
 read_enum(Stream, Limit, RefEnum, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
@@ -698,8 +710,8 @@ read_enum(Stream, Limit, RefEnum, Result, !Pos, !IO) :-
 
 :- pred read_embedded_message(S::in, limit::in, M::di,
     stream.result(M, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E), pb_message(M) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E), pb_message(M) ).
 
 read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
@@ -748,8 +760,8 @@ read_embedded_message(Stream, Limit, Message0, Result, !Pos, !IO) :-
 
 :- pred read_pb_string(S::in, limit::in,
     stream.result(string, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_pb_string(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
@@ -783,8 +795,8 @@ read_pb_string(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_n_bytes_into_string(S::in, limit::in, int::in,
     stream.result(string, pb_read_error(E))::out, byte_pos::in, byte_pos::out,
-    io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_n_bytes_into_string(Stream, Limit, N, Result, !Pos, !IO) :-
     allocate_string(N, Str0),
@@ -792,8 +804,8 @@ read_n_bytes_into_string(Stream, Limit, N, Result, !Pos, !IO) :-
     
 :- pred read_n_bytes_into_string_2(S::in, limit::in, int::in, int::in,
     string::di, stream.result(string, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_n_bytes_into_string_2(Stream, Limit, I, N, Str0, Result, !Pos, !IO) :-
     ( I = N ->
@@ -818,8 +830,8 @@ read_n_bytes_into_string_2(Stream, Limit, I, N, Str0, Result, !Pos, !IO) :-
 
 :- pred read_pb_bool(S::in, limit::in,
     stream.result(bool, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_pb_bool(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
@@ -840,8 +852,8 @@ read_pb_bool(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_pb_double(S::in, limit::in,
     stream.result(float, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_pb_double(Stream, Limit, Result, !Pos, !IO) :-
     ( float_is_8_bytes ->
@@ -976,8 +988,8 @@ read_pb_double(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_pb_bytes(S::in, limit::in,
     stream.result(bitmap.bitmap, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_pb_bytes(Stream, Limit, Result, !Pos, !IO) :-
     read_uvarint(Stream, Limit, VarIntRes, !Pos, !IO),
@@ -991,8 +1003,8 @@ read_pb_bytes(Stream, Limit, Result, !Pos, !IO) :-
 
 :- pred read_n_bytes_into_bitmap(S::in, limit::in, int::in,
     stream.result(bitmap.bitmap, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_n_bytes_into_bitmap(Stream, Limit, N, Result, !Pos, !IO) :-
     BM0 = bitmap.new(8 * N, no),
@@ -1000,8 +1012,8 @@ read_n_bytes_into_bitmap(Stream, Limit, N, Result, !Pos, !IO) :-
     
 :- pred read_n_bytes_into_bitmap_2(S::in, limit::in, int::in, int::in,
     bitmap::bitmap_di, stream.result(bitmap, pb_read_error(E))::out,
-    byte_pos::in, byte_pos::out, io::di, io::uo) is det
-    <= ( stream.reader(S, byte, io, E) ).
+    byte_pos::in, byte_pos::out, IO::di, IO::uo) is det
+    <= ( stream.reader(S, byte, IO, E) ).
 
 read_n_bytes_into_bitmap_2(Stream, Limit, I, N, BM0, Result, !Pos, !IO) :-
     ( I = N ->
@@ -1166,14 +1178,14 @@ reverse_message_lists_2(ArgNum, !M) :-
     )
 ].
 
-:- pred write_message(S::in, M::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io), pb_message(M) ).
+:- pred write_message(S::in, M::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO), pb_message(M) ).
 
 write_message(Stream, Message, !IO) :-
     write_message_arg_and_continue(Stream, Message, 0, !IO).
 
 :- pred write_message_arg_and_continue(S::in, M::in, arg_num::in,
-    io::di, io::uo) is det <= ( stream.writer(S, byte, io), pb_message(M) ).
+    IO::di, IO::uo) is det <= ( stream.writer(S, byte, IO), pb_message(M) ).
 
 write_message_arg_and_continue(Stream, Message, ArgNum, !IO) :-
     ( field_info(Message, FieldId, ArgNum, FieldType, Card) ->
@@ -1192,7 +1204,7 @@ write_message_arg_and_continue(Stream, Message, ArgNum, !IO) :-
     ).
 
 :- pred write_field(S::in, key::in, field_type::in, field_cardinality::in,
-    T::in, io::di, io::uo) is det <= ( stream.writer(S, byte, io) ).
+    T::in, IO::di, IO::uo) is det <= ( stream.writer(S, byte, IO) ).
 
 write_field(Stream, Key, FieldType, Card, Arg, !IO) :-
     ( FieldType = pb_double,
@@ -1241,8 +1253,8 @@ write_field(Stream, Key, FieldType, Card, Arg, !IO) :-
             Values:list(M), !IO)
     ).
 
-:- pred write_pb_string(S::in, key::in, string::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_pb_string(S::in, key::in, string::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_pb_string(Stream, Key, String, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1252,8 +1264,8 @@ write_pb_string(Stream, Key, String, !IO) :-
             stream.put(Stream, char.to_int(Char), IO0, IO1)
         ), String, !IO).
 
-:- pred write_pb_bool(S::in, key::in, bool::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_pb_bool(S::in, key::in, bool::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_pb_bool(Stream, Key, Bool, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1263,16 +1275,16 @@ write_pb_bool(Stream, Key, Bool, !IO) :-
         write_uvarint(Stream, 0, !IO)
     ).
 
-:- pred write_key(S::in, key::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_key(S::in, key::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_key(Stream, key(FieldId, WireType), !IO) :-
     tag_wire_type(Tag, WireType),
     write_uvarint(Stream, (FieldId << 3) \/ Tag, !IO).
 
     % This treats the int as unsigned.
-:- pred write_uvarint(S::in, int::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_uvarint(S::in, int::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_uvarint(Stream, N, !IO) :-
     ( N `unsigned_less_than` 0b10000000 ->
@@ -1314,8 +1326,8 @@ write_uvarint(Stream, N, !IO) :-
     Z = (MR_Integer)((MR_Unsigned)X - (MR_Unsigned)Y);
 ").
 
-:- pred write_pb_int32(S::in, key::in, int::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_pb_int32(S::in, key::in, int::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_pb_int32(Stream, Key, Int, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1325,14 +1337,14 @@ write_pb_int32(Stream, Key, Int, !IO) :-
         write_neg_varint(Stream, Int, !IO)
     ).
 
-:- pred write_neg_varint(S::in, int::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_neg_varint(S::in, int::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_neg_varint(Stream, N, !IO) :-
     write_neg_varint_2(Stream, 1, N, !IO).
 
-:- pred write_neg_varint_2(S::in, int::in, int::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_neg_varint_2(S::in, int::in, int::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_neg_varint_2(Stream, Chunk, N, !IO) :-
     % http://code.google.com/apis/protocolbuffers/docs/encoding.html
@@ -1345,8 +1357,8 @@ write_neg_varint_2(Stream, Chunk, N, !IO) :-
         put(Stream, N /\ 0b01111111, !IO)
     ).
 
-:- pred write_pb_sint32(S::in, key::in, int::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_pb_sint32(S::in, key::in, int::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_pb_sint32(Stream, Key, N, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1362,8 +1374,8 @@ zigzag_encode(N) = ZigZagN :-
         ZigZagN = (int.abs(N) `unsigned_left_shift` 1) `unsigned_minus` 1
     ).
 
-:- pred write_pb_sfixed32(S::in, key::in, int::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_pb_sfixed32(S::in, key::in, int::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_pb_sfixed32(Stream, Key, Int, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1372,8 +1384,8 @@ write_pb_sfixed32(Stream, Key, Int, !IO) :-
     put(Stream, (Int >> 16) /\ 0xFF, !IO),
     put(Stream, (Int >> 24) /\ 0xFF, !IO).
 
-:- pred write_enum(S::in, key::in, E::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io), pb_enumeration(E) ).
+:- pred write_enum(S::in, key::in, E::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO), pb_enumeration(E) ).
 
 write_enum(Stream, Key, EnumVal, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1407,15 +1419,15 @@ det_dynamic_cast(T, U) :-
             "type mismatch")
     ).
 
-:- pred write_embedded_message_and_key(S::in, key::in, M::in, io::di, io::uo)
-    is det <= ( stream.writer(S, byte, io), pb_message(M) ).
+:- pred write_embedded_message_and_key(S::in, key::in, M::in, IO::di, IO::uo)
+    is det <= ( stream.writer(S, byte, IO), pb_message(M) ).
 
 write_embedded_message_and_key(Stream, Key, Message, !IO) :-
     write_key(Stream, Key, !IO),
     write_embedded_message(Stream, Message, !IO).
 
-:- pred write_embedded_message(S::in, M::in, io::di, io::uo)
-    is det <= ( stream.writer(S, byte, io), pb_message(M) ).
+:- pred write_embedded_message(S::in, M::in, IO::di, IO::uo)
+    is det <= ( stream.writer(S, byte, IO), pb_message(M) ).
 
 write_embedded_message(Stream, Message, !IO) :-
     Length = message_size(Message),
@@ -1432,8 +1444,8 @@ write_embedded_message(Stream, Message, !IO) :-
     write_uvarint(Stream, Length, !IO),
     write_message(Stream, Message, !IO).
 
-:- pred write_pb_double(S::in, key::in, float::in, io::di, io::uo) is det
-    <= ( stream.writer(S, byte, io) ).
+:- pred write_pb_double(S::in, key::in, float::in, IO::di, IO::uo) is det
+    <= ( stream.writer(S, byte, IO) ).
 
 write_pb_double(Stream, Key, Flt, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1455,8 +1467,8 @@ write_pb_double(Stream, Key, Flt, !IO) :-
         throw(float_not_8_bytes_on_this_platform:pb_write_error)
     ).
 
-:- pred write_pb_bytes(S::in, key::in, bitmap.bitmap::in, io::di, io::uo)
-    is det <= ( stream.writer(S, byte, io) ).
+:- pred write_pb_bytes(S::in, key::in, bitmap.bitmap::in, IO::di, IO::uo)
+    is det <= ( stream.writer(S, byte, IO) ).
 
 write_pb_bytes(Stream, Key, BitMap, !IO) :-
     write_key(Stream, Key, !IO),
@@ -1662,6 +1674,84 @@ string_to_bitmap(Str) = BitMap :-
 set_byte_in_bitmap(Chr, !I, !BitMap) :-
     !BitMap ^ unsafe_byte(!.I) := char.to_int(Chr),
     !:I = !.I + 1.
+
+%-----------------------------------------------------------------------------%
+
+message_to_bitmap(Message) = Bitmap :-
+    WriteBuffer0 = new_bitmap_builder(8),
+    % We use a mutvar essentially to avoid problem with uniqueness,
+    % otherwise we could thread the write_buffer through as the state.
+    some [!Store] (
+        !:Store = wb_store,
+        store.new_mutvar(WriteBuffer0, Mutvar, !Store),
+        write_message(write_buffer_mutvar(Mutvar), Message, !Store),
+        store.get_mutvar(Mutvar, WriteBuffer, !.Store, _Store)
+    ),
+    Bitmap0 = finalize_to_bitmap(WriteBuffer),
+    Bitmap = unsafe_promise_unique(Bitmap0).
+
+:- type wb_store ---> wb_store.
+
+:- instance store(wb_store) where [].
+
+:- type write_buffer_mutvar
+    --->    write_buffer_mutvar(generic_mutvar(write_buffer, wb_store)).
+
+:- instance stream.stream(write_buffer_mutvar, wb_store) where [
+    (name(_, "write_buffer_mutvar", !Store))
+].
+
+:- instance stream.output(write_buffer_mutvar, wb_store) where [
+    (flush(write_buffer_mutvar(Mutvar), !Store) :-
+        get_mutvar(Mutvar, WriteBuffer0, !Store),
+        flush(WriteBuffer0, WriteBuffer),
+        set_mutvar(Mutvar, WriteBuffer, !Store)
+    )
+].
+
+:- instance stream.writer(write_buffer_mutvar, bitmap.byte, wb_store) where [
+    (put(write_buffer_mutvar(Mutvar), Byte, !Store) :-
+        get_mutvar(Mutvar, WriteBuffer0, !Store),
+        put_byte(Byte, WriteBuffer0, WriteBuffer),
+        set_mutvar(Mutvar, WriteBuffer, !Store)
+    )
+].
+
+%-----------------------------------------------------------------------------%
+
+bitmap_to_message(Bitmap, Result) :-
+    pb_get(pb_reader(bitmap_stream(Bitmap), det_num_bytes(Bitmap) + 1),
+        GetRes, 0, _Offset),
+    (
+        GetRes = ok(pb_message(M)),
+        Result = ok(M)
+    ;
+        GetRes = eof,
+        Result = error(make_io_error("unexpected eof"))
+    ;
+        GetRes = error(Error),
+        Result = error(make_io_error(error_message(Error)))
+    ).
+
+:- type bitmap_stream
+    --->    bitmap_stream(bitmap.bitmap).
+
+:- instance stream.stream(bitmap_stream, int) where [
+    (name(_, "bitmap_stream", !Offset))
+].
+
+:- instance stream.input(bitmap_stream, int) where [].
+
+:- instance stream.reader(bitmap_stream, bitmap.byte, int, io.error) where [
+    (get(bitmap_stream(Bitmap), Result, !Offset) :-
+        ( !.Offset < num_bytes(Bitmap) ->
+            Result = ok(Bitmap ^ unsafe_byte(!.Offset)),
+            !:Offset = !.Offset + 1
+        ;
+            Result = eof
+        )
+    )
+].
 
 %-----------------------------------------------------------------------------%
 

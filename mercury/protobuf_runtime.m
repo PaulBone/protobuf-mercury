@@ -1565,7 +1565,7 @@ add_arg_size(FieldId, FieldType, Card, Arg, !Size) :-
     ; FieldType = pb_bytes,
         arg_to_value_list(Arg, Card, Values),
         NumVals = list.length(Values),
-        list.foldl(add_pb_string_size, Values, !Size)
+        list.foldl(add_pb_bytes_size, Values, !Size)
     ; FieldType = enumeration(_:En),
         arg_to_value_list(Arg, Card, Values),
         NumVals = list.length(Values),
@@ -1608,6 +1608,13 @@ add_pb_sint32_size(Int, !Size) :-
 
 add_pb_string_size(Str, !Size) :-
     Length = string.length(Str),
+    add_uvarint_size(Length, !Size),
+    !:Size = !.Size + Length.
+
+:- pred add_pb_bytes_size(bitmap::in, int::in, int::out) is det.
+
+add_pb_bytes_size(BitMap, !Size) :-
+    Length = bitmap.det_num_bytes(BitMap),
     add_uvarint_size(Length, !Size),
     !:Size = !.Size + Length.
 

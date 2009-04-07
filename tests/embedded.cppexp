@@ -24,6 +24,7 @@ sub_message_1 {
   colour: RED
   colour: BLUE
   colour: GREEN
+  bitmap: "12345678910"
 }
 sub_message_2 {
 }

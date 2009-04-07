@@ -16,6 +16,7 @@ message TopMessage {
 message SubMessage1 {
     required SubSubMessage1 sub_sub_message_1 = 1;
     repeated Colour colour = 2;
+    optional bytes bitmap = 3;
 }
 
 message SubMessage2 {

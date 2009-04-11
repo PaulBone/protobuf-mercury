@@ -139,7 +139,7 @@
     mode field_info(unused, in, out, out, out) is semidet,
     mode field_info(unused, out, in, out, out) is semidet,
 
-    func init_message = (M::uo) is det
+    func init_message = M
 ].
 
 %-----------------------------------------------------------------------------%

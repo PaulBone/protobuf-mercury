@@ -673,11 +673,7 @@ read_pb_sfixed32(Stream, Limit, Result, !Pos, !IO) :-
                 \/ (Byte3 `unchecked_left_shift` 24),
             % If the number is negative make sure we return a negative int
             % when the word size is > 32 bits.
-            ( Byte3 /\ 0b10000000 > 0 ->
-                Int = Int0 \/ (-1 `xor` 0xFFFFFFFF)
-            ;
-                Int = Int0
-            ),
+            Int = sign_extend_32(Int0),
             Result = ok(Int)
         ;
             error("protobuf_runtime: internal error: " ++
@@ -688,6 +684,15 @@ read_pb_sfixed32(Stream, Limit, Result, !Pos, !IO) :-
     ; BytesRes = eof,
         Result = error(premature_eof(!.Pos))
     ).
+
+    % http://graphics.stanford.edu/~seander/bithacks.html#VariableSignExtend
+:- func sign_extend_32(int) = int.
+
+sign_extend_32(X) = R :-
+    B = 32,
+    M = (1 << (B - 1)),
+    % X1 = X /\ ((1 << B) - 1), % not needed when higher bits are already clear
+    R = (X `xor` M) - M.
 
 :- pred read_enum(S::in, limit::in, En::in,
     stream.result(En, pb_read_error(E))::out,

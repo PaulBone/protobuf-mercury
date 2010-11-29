@@ -15,7 +15,7 @@ check: $(TESTS:%=%_cppreader) $(TESTS:%=%_mwriter) $(TESTS:%=%_mreader) $(TESTS:
 	./runtests $(TESTS)
 
 $(TESTS:%=%_cppreader): %_cppreader: %_cppreader.o %.pb.o
-	$(CXX) -o $@ $^ -lprotobuf
+	$(CXX) -o $@ $^ -lprotobuf -lpthread
 
 $(TESTS:%=%_cppreader.o): %_cppreader.o: %_cppreader.cc %.pb.cc
 	$(CXX) -c $^

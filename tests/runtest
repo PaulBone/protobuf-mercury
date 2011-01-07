@@ -2,7 +2,7 @@
 set -x
 # Remove any generated files that might be lying around from previous
 # tests.
-rm -f $1.out1 $1.out2 $1.mout1 $1.mout2 $1.cppout $1.mexp11
+rm -f $1.out1 $1.out2 $1.mout1 $1.mout2 $1.cppout $1.mexp1
 
 # Generate the expected output from the input if it hasn't been supplied.
 if test -f $1.mexp; then

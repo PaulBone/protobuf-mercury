@@ -11,7 +11,7 @@ sub_message_1 {
   sub_sub_message_1 {
     f3: "hello"
     f2: -1
-    f1: -2147483648
+    f1: 1234
   }
 }
 sub_message_1 {

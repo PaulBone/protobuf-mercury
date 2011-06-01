@@ -26,7 +26,7 @@ $(TESTS:%=%_cppreader.o): %_cppreader.o: %_cppreader.cc %.pb.cc
 
 %_mwriter.m: %.inp mwriter_template 
 	@cat mwriter_template | sed 's/TEST/$(@:%_mwriter.m=%)/g' | \
-		sed 's/MESSAGE_TERM/$(shell cat $<)/g' > $@
+		sed 's/MESSAGE_TERM/$(shell cat $< | sed 's/\\/\\\\/g')/g' > $@
 
 %_mreader.m: %.type mreader_template 
 	@cat mreader_template | sed 's/TEST/$(@:%_mreader.m=%)/g' | \

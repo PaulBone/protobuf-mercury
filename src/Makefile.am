@@ -4,7 +4,7 @@ mprotoc_SOURCES =							\
 	google/protobuf/compiler/mercury/mercury_strutil.cc		\
 	google/protobuf/compiler/mercury/main.cc
 
-mprotoc_LDADD =	-lprotoc -lpthread
+mprotoc_LDADD =	-lprotoc -lprotobuf -lpthread
 
 noinst_HEADERS = 							\
 	google/protobuf/compiler/mercury/mercury_generator.h		\

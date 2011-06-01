@@ -1,4 +1,4 @@
-AC_INIT([protobuf-mercury], [0.1], [iml@missioncriticalit.com])
+AC_INIT([protobuf-mercury], [0.2], [iml@missioncriticalit.com])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_PROG_CXX
 AC_PROG_CC

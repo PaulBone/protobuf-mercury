@@ -1436,10 +1436,10 @@ write_embedded_message_and_key(Stream, Key, Message, !IO) :-
 
 write_embedded_message(Stream, Message, !IO) :-
     Length = message_size(Message),
-    trace [compile_time(flag("pb_assertions")), io(!IO)] (
-        store.new_mutvar(0, MutVar, !IO),
-        write_message(byte_counter(MutVar), Message, !IO),
-        store.get_mutvar(MutVar, RealLength, !IO),
+    trace [compile_time(flag("pb_assertions")), io(!TIO)] (
+        store.new_mutvar(0, MutVar, !TIO),
+        write_message(byte_counter(MutVar), Message, !TIO),
+        store.get_mutvar(MutVar, RealLength, !TIO),
         ( RealLength \= Length ->
             error("write_embedded_message: assertion failure")
         ;

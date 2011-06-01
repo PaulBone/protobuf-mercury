@@ -16,7 +16,7 @@ Mercury.modules:
 	mmc -f ../mercury/protobuf_runtime.m
 
 distdir:
-	cp person.proto writeread_person.m Makefile README $(distdir)
+	cp person.proto writeread_person.m writeread_bitmap.m Makefile README $(distdir)
 
 #############################################################################
 # Other targets required by automake:

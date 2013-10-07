@@ -1,6 +1,20 @@
 Protocol buffers for Mercury
 ----------------------------
 
+
+About
+-----
+
+This program was developed at Mission Critical IT
+http://www.missioncriticalit.com by Ian MacLarty, Peter Wang and Peter Ross,
+its webpage is at http://code.google.com/p/protobuf-mercury/.  I'm (Paul
+Bone) now maintaining it here on http://github.com for Mission Criticdal IT
+and with Ian's permission.
+
+
+Installation
+------------
+
 First install Google's protoc
 (available from http://code.google.com/p/protobuf/).
 

@@ -17,6 +17,13 @@ then
 fi
 AC_SUBST(MMC)
 
+PKG_CHECK_MODULES([protobuf], [protobuf >= 2.4], , [
+    AC_MSG_ERROR([Could not find protocol buffers library])])
+
+AC_LANG(C++)
+AC_CHECK_LIB([protoc], [main], , [
+    AC_MSG_ERROR([Could not find protocol buffers compiler library])]) 
+
 AC_CONFIG_FILES([
     Makefile
     src/Makefile

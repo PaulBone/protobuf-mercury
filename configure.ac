@@ -1,5 +1,5 @@
 AC_INIT([protobuf-mercury], [DEV], [iml@missioncriticalit.com])
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AC_PROG_CXX
 AC_PROG_CC
 

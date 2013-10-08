@@ -1,5 +1,5 @@
 % Protocol Buffers for Mercury
-% Copyright 2008 Mission Critical Australia.
+% Copyright 2008,2013 Mission Critical Australia.
 % http://code.google.com/p/protobuf-mercury/
 %
 % Redistribution and use in source and binary forms, with or without
@@ -346,7 +346,7 @@ build_message(Stream, Limit, Message0, Result, !Pos, !FieldIds, !IO) :-
     ;
         read_key(Stream, Limit, KeyResult, !Pos, !IO),
         ( KeyResult = ok(key(FieldId, WireType)),
-            sparse_bitset.insert(!.FieldIds, FieldId, !:FieldIds),
+            sparse_bitset.insert(FieldId, !FieldIds),
             ( field_info(Message0, FieldId, ArgNum, FieldType, Card) ->
                 (
                     field_type_compatible_with_wire_type(FieldType, WireType)
@@ -1012,7 +1012,7 @@ read_pb_bytes(Stream, Limit, Result, !Pos, !IO) :-
     <= ( stream.reader(S, byte, IO, E) ).
 
 read_n_bytes_into_bitmap(Stream, Limit, N, Result, !Pos, !IO) :-
-    BM0 = bitmap.new(8 * N, no),
+    BM0 = bitmap.init(8 * N, no),
     read_n_bytes_into_bitmap_2(Stream, Limit, 0, N, BM0, Result, !Pos, !IO).
     
 :- pred read_n_bytes_into_bitmap_2(S::in, limit::in, int::in, int::in,
@@ -1059,7 +1059,7 @@ set_message_field(ArgNum, Card, Value, !Message) :-
 
 set_arg(ArgNum, ArgVal, !Term) :-
     some [!Store] (
-        store.new(!:Store),
+        store.init(!:Store),
         store.new_ref(!.Term, Ref, !Store),
         store.arg_ref(Ref, ArgNum, ArgRef, !Store),
         store.set_ref_value(ArgRef, ArgVal, !Store),
@@ -1676,7 +1676,7 @@ tag_wire_type(5, bit32).
 %-----------------------------------------------------------------------------%
 
 string_to_bitmap(Str) = BitMap :-
-    BitMap0 = bitmap.new(string.length(Str) * 8),
+    BitMap0 = bitmap.init(string.length(Str) * 8),
     string.foldl2(set_byte_in_bitmap, Str, 0, _, BitMap0, BitMap1),
     unsafe_promise_unique(BitMap1, BitMap).
 
@@ -1785,7 +1785,7 @@ required_fields(Message) = FieldIds :-
 required_fields_2(Message, ArgNum, !FieldIds) :-
     ( field_info(Message, FieldId, ArgNum, _, Card) ->
         ( Card = required,
-            sparse_bitset.insert(!.FieldIds, FieldId, !:FieldIds)
+            sparse_bitset.insert(FieldId, !FieldIds)
         ;
             ( Card = optional
             ; Card = repeated
